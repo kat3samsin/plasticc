@@ -1,0 +1,39 @@
+name: Plasticc
+options:
+  bundleIdPrefix: com.katre
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  PlasticcCore:
+    path: PlasticcCore
+targets:
+  Plasticc:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    dependencies:
+      - package: PlasticcCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.katre.plasticc
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Plasticc
+        INFOPLIST_KEY_NSCameraUsageDescription: Plasticc uses the camera to take photos.
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Plasticc saves the prints you keep to your library.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+schemes:
+  Plasticc:
+    build:
+      targets:
+        Plasticc: all
+    run:
+      config: Debug
