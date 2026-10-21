@@ -6,10 +6,11 @@ How the three stocks and the Snappy 35 are modelled in `PlasticcCore/Sources/Pla
 
 The film in Fujifilm QuickSnap single-use cameras.
 
-- It has a fourth colour layer, which gives it vivid greens, blues and violets.
+- It is known for vivid greens, blues and violets. Fuji marketed a fourth colour layer for this, but later X-TRA datasheets (2007, CH-23) no longer list it ([Wikipedia](https://en.wikipedia.org/wiki/Fujifilm_Superia)), so the look is credited to the emulsion and the Frontier scan, not to a fourth layer.
 - The highlights lean magenta, and the shadows go cyan-green when scanned on a Frontier.
 - Underexposed, it turns muddy green with coarse grain.
-- Contrast is high and saturation rich.
+- Contrast is high and saturation rich. Its datasheet layer gammas are about 0.59 / 0.59 / 0.77 (R/G/B): the blue layer is noticeably contrastier, which drives its colour crossover.
+- Its antihalation layer is weak, so highlights glow more than on Portra.
 
 Sources:
 - [Adorama](https://www.adorama.com/FJCHSP36.html)
@@ -25,6 +26,8 @@ The film in some Kodak single-use cameras.
 - Contrast is natural, with a soft highlight rolloff.
 - Skin rendering is the best of any ISO 800 film.
 - Grain is visible but not heavy (PGI 48).
+- Layer gammas are about 0.52 / 0.49 / 0.53: low and nearly balanced, so it barely crosses over.
+- Its antihalation layer is strong: little glow.
 
 Sources:
 - [35mmc](https://www.35mmc.com/03/06/2019/kodak-portra-800-a-review-some-thoughts-on-shooting-it-within-my-workflow/)
@@ -43,6 +46,30 @@ Sources:
 - [Emulsive](https://emulsive.org/reviews/ilford-hp5-plus-in-35mm-120-and-sheet-formats)
 - [schneidan, single-use camera guide](https://schneidan.com/2016/04/19/ilford-hp5-single-use-camera-guide/)
 
+## The colour model
+
+`LookSpec` turns an iPhone pixel into a minilab scan, baked into a 33³ colour cube:
+
+1. **Undo the phone's shoulder:** decode sRGB to linear light and undo part of iOS's highlight compression, so the film's shoulder doesn't squash highlights a second time.
+2. **White balance and exposure.**
+3. **Characteristic curve per channel:** a straight line in log exposure through mid-grey, whose slope is the layer's gamma relative to a normal print, then a smooth shoulder into white. Shadows stay open, like film's long toe. Different gammas per channel give crossover: a steeper blue makes shadows warmer and highlights cooler. A per-channel offset shifts colour balance in the midtones only.
+4. **Hue and chroma in OkLab:** raised-cosine sectors rotate and saturate ranges of hue, such as Superia's greens toward teal and Portra's skin toward orange. Saturation also falls in deep shadows and bright highlights.
+5. **Highlight rolloff on lightness only**, so bright colours keep their hue.
+6. **Print tints and lifted black**, in display values.
+
+Measured on ColorChecker patches (`FilmCharacterTests`):
+
+| Film | Chroma | Signature |
+|---|---|---|
+| Superia | about 11% more on average | Greens 20–26% richer and 9° toward teal; skin hue unchanged |
+| Portra 800 | about 8% less | Skin about 5° toward orange; greens and sky softer |
+
+The research behind this, and the next steps, are in the "accurate film emulation" research of 2026-10-21:
+
+- **Next:** a datasheet-driven model with digitised D-log E curves, a density crosstalk matrix and a paper or scanner curve.
+- **Gold standard:** a LUT fitted to colour charts shot on real disposables and scanned at one lab.
+- **Licences:** spektrafilm's profiles are CC BY-SA 4.0 and its code is GPL. Digitise the datasheets ourselves rather than use them.
+
 ## The camera
 
 - **Exposure:** fixed at f/10 and 1/100 s on ISO 400 film, which suits a scene of about EV 11.3 at ISO 100. `Developer` reads the scene's brightness from the iPhone's EXIF.
@@ -51,7 +78,7 @@ Sources:
   - The flash reaches about 2 m, so a flash shot prints no darker than −0.4 stops.
 - **Lens:** a one- or two-element plastic lens. Prints are soft overall, softer toward the corners, and vignetted.
 - **Flash:** weak and fixed. The subject is lit, the background falls away to dark, and the cast is slightly cool.
-- **Halation:** these films have antihalation layers, so most of the glow in disposable shots is lens bloom. It is modelled as halation on the colour films only.
+- **Halation:** most of the glow in disposable shots is lens bloom. It is modelled on the colour films only, stronger on Superia (weak antihalation) than Portra (strong).
 - **Light leaks:** film near the leader gets fogged while loading, so frame 1 leaks 55% of the time, frame 2 30%, and later frames 12%.
 - **Date stamp:** orange LED segments in the bottom right, in the format `'26 10 20`.
 - **Scan size:** prints come out at a Frontier's 3088 px long edge.

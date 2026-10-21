@@ -32,16 +32,28 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
         id: "superia400", name: "Fujifilm Superia X-TRA 400",
         look: {
             var l = LookSpec()
-            l.contrast = 0.36
-            l.fade = 0.03
+            l.channelGain = SIMD3(0.98, 1.01, 1.0)
+            // Datasheet layer gammas are about 0.59 / 0.59 / 0.77: a contrastier blue layer.
+            l.contrast = SIMD3(1.06, 1.06, 1.14)
+            l.curveOffset = SIMD3(0, 0.04, -0.03)
+            l.saturation = 1.06
+            l.saturationRolloff = 0.22
+            l.hueSectors = [
+                // Fuji greens: leaning teal and a bit richer.
+                .init(center: 145, width: 90, hueShift: 9, chroma: 0.02),
+                // Skin a touch pinker than Kodak.
+                .init(center: 55, width: 50, hueShift: -3),
+                // Bright, clean blues.
+                .init(center: 255, width: 70, chroma: -0.06),
+            ]
             l.highlightRolloff = 0.08
-            l.saturation = 1.2
-            l.shadowTint = SIMD3(-0.02, 0.04, 0.035)
-            l.highlightTint = SIMD3(0.03, -0.005, 0.025)
-            l.channelGain = SIMD3(0.97, 1.02, 1.0)
+            l.fade = 0.03
+            l.shadowTint = SIMD3(-0.015, 0.02, 0.02)
+            l.highlightTint = SIMD3(0.015, -0.005, 0.015)
             return l
         }(),
-        grain: Grain(rms: 2.0, size: 0.9, chroma: 0.15, underexposure: 0.15), halation: 0.08,
+        // Weak antihalation layer: more glow than Portra.
+        grain: Grain(rms: 2.0, size: 0.9, chroma: 0.15, underexposure: 0.15), halation: 0.15,
         leakTones: [SIMD3(1.0, 0.45, 0.2), SIMD3(1.0, 0.3, 0.5)], leakChance: 0.12,
         vignette: 0.45, softness: 0.55
     )
@@ -50,16 +62,27 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
         id: "portra800", name: "Kodak Portra 800",
         look: {
             var l = LookSpec()
-            l.contrast = 0.2
+            l.channelGain = SIMD3(1.06, 1.0, 0.9)
+            // Layer gammas about 0.52 / 0.49 / 0.53: low, nearly balanced contrast.
+            l.contrast = SIMD3(0.92, 0.9, 0.92)
+            l.curveOffset = SIMD3(0.05, 0, -0.05)
+            l.saturation = 1.0
+            l.saturationRolloff = 0.2
+            l.hueSectors = [
+                // Reds and skin toward orange, gently.
+                .init(center: 45, width: 60, hueShift: 2, chroma: -0.08),
+                // Muted greens and blues.
+                .init(center: 145, width: 80, chroma: -0.08),
+                .init(center: 262, width: 70, chroma: 0.05),
+            ]
+            l.highlightRolloff = 0.14
             l.fade = 0.04
-            l.highlightRolloff = 0.18
-            l.saturation = 1.06
-            l.shadowTint = SIMD3(0.01, 0.005, 0.02)
-            l.highlightTint = SIMD3(0.06, 0.035, -0.01)
-            l.channelGain = SIMD3(1.09, 1.01, 0.87)
+            l.shadowTint = SIMD3(0.005, 0.005, 0.015)
+            l.highlightTint = SIMD3(0.035, 0.02, -0.005)
             return l
         }(),
-        grain: Grain(rms: 2.2, size: 0.8, chroma: 0.12, underexposure: 0.10), halation: 0.16,
+        // Strong antihalation layer: a softer glow than Superia.
+        grain: Grain(rms: 2.2, size: 0.8, chroma: 0.12, underexposure: 0.10), halation: 0.08,
         leakTones: [SIMD3(1.0, 0.55, 0.25), SIMD3(1.0, 0.75, 0.4)], leakChance: 0.12,
         vignette: 0.4, softness: 0.5
     )
@@ -70,9 +93,11 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             var l = LookSpec()
             // Panchromatic, a little dark in the reds and light in the blues.
             l.monoWeights = SIMD3(0.21, 0.60, 0.19)
-            l.contrast = 0.28
-            l.fade = 0.03
-            l.highlightRolloff = 0.12
+            l.contrast = SIMD3(repeating: 1.1)
+            // Holds highlights better than shadows: a long shoulder.
+            l.shoulderRecovery = 0.5
+            l.highlightRolloff = 0.06
+            l.fade = 0.025
             return l
         }(),
         grain: Grain(rms: 2.8, size: 1.0, chroma: 0, underexposure: 0.12), halation: 0,

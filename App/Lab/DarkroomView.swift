@@ -17,7 +17,7 @@ struct DarkroomView: View {
                 .ignoresSafeArea()
             Grain(opacity: 0.2).ignoresSafeArea()
 
-            VStack(spacing: 28) {
+            VStack(spacing: 22) {
                 VStack(spacing: 6) {
                     Text("DARKROOM")
                         .font(.print(13))
@@ -29,9 +29,9 @@ struct DarkroomView: View {
                         .contentTransition(.numericText())
                 }
                 .foregroundStyle(Color(red: 1, green: 0.75, blue: 0.68))
-                .padding(.top, 50)
+                .padding(.top, 40)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Tray(print: model.latestPrint, emerge: emerge)
 
@@ -50,9 +50,8 @@ struct DarkroomView: View {
                     }
                 }
 
-                ProgressStrip(done: model.developedCount, total: total)
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 40)
+                NegativeStrip(model: model)
+                    .padding(.bottom, 30)
             }
         }
         .onChange(of: model.developedCount) {
@@ -104,24 +103,6 @@ private struct Tray: View {
                     .padding(10)
             }
             .frame(width: 270, height: 330)
-        }
-    }
-}
-
-/// One square per frame, filling in as prints come out.
-private struct ProgressStrip: View {
-    let done: Int
-    let total: Int
-
-    var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 12)
-        LazyVGrid(columns: columns, spacing: 5) {
-            ForEach(0..<total, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(i < done ? Color(red: 1, green: 0.72, blue: 0.64) : .black.opacity(0.35))
-                    .aspectRatio(2 / 3, contentMode: .fit)
-                    .animation(.easeOut(duration: 0.3), value: done)
-            }
         }
     }
 }

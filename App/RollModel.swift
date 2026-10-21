@@ -1,4 +1,5 @@
 import Foundation
+import CoreImage
 import Observation
 import os
 import PlasticcCore
@@ -30,6 +31,8 @@ final class RollModel {
     private(set) var developFailed = false
     /// The print that just came out of the tray, small, for the darkroom.
     private(set) var latestPrint: UIImage?
+    /// Each processed frame as it looks on the negative strip, by frame index.
+    private(set) var negatives: [Int: UIImage] = [:]
     private(set) var finished: FinishedRoll?
     /// Why the last kept print didn't reach Photos, for the deck's alert.
     var saveProblem: PhotoLibrary.Problem?
@@ -153,6 +156,12 @@ final class RollModel {
             UIApplication.shared.endBackgroundTask(background)
         }
         LabNotice.cancel()
+        // Back from a relaunch mid-develop: the frames already done are on the strip too.
+        for (index, shot) in roll.shots.enumerated() where negatives[index] == nil {
+            if let file = shot.developedFile, let thumb = Thumbnail.load(store.url(for: file), maxPixel: 240)?.cgImage {
+                negatives[index] = Self.negative(of: thumb, film: film)
+            }
+        }
         let stamp = Settings.dateStamp
         let developer = developer
         for (index, shot) in roll.shots.enumerated() where shot.developedFile == nil {
@@ -185,6 +194,7 @@ final class RollModel {
                 break
             }
             latestPrint = UIImage(cgImage: result.1)
+            negatives[index] = Self.negative(of: result.1, film: film)
             Feel.shared.printSlide()
             self.roll = store.current
         }
@@ -213,6 +223,17 @@ final class RollModel {
 
     func newCamera() {
         finished = nil
+        negatives = [:]
+    }
+
+    private static let negativeContext = CIContext()
+
+    /// A small negative of a print, for the strip.
+    private static func negative(of print: CGImage, film: FilmStock) -> UIImage? {
+        let image = Negative.make(from: CIImage(cgImage: print), film: film)
+        let small = image.transformed(by: CGAffineTransform(scaleX: 240 / max(image.extent.width, image.extent.height),
+                                                            y: 240 / max(image.extent.width, image.extent.height)))
+        return negativeContext.createCGImage(small, from: small.extent).map { UIImage(cgImage: $0) }
     }
 
     private func perform(_ move: () throws -> Void) {
