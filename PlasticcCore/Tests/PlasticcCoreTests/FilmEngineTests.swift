@@ -137,7 +137,7 @@ final class FilmEngineTests: XCTestCase {
         let dark = TestImages.solid(CIColor(red: 0.1, green: 0.1, blue: 0.1), width: 400, height: 600)
         let film = FilmStock.portra400
         // On a portrait frame the stamp runs down the lower left, as on a camera turned on its side.
-        let region = CGRect(x: 25, y: 90, width: 40, height: 180)
+        let region = CGRect(x: 10, y: 30, width: 40, height: 180)
         let stamped = PixelReader.average(develop(dark, film, date: date), in: region)
         let plain = PixelReader.average(develop(dark, film), in: region)
         XCTAssertGreaterThan(stamped.r - plain.r, 2)
@@ -259,7 +259,7 @@ final class DateStampVisibilityTests: XCTestCase {
         let white = TestImages.solid(CIColor(red: 0.95, green: 0.95, blue: 0.95), width: 400, height: 600)
         let date = Date(timeIntervalSince1970: 1_790_000_000)
         let stamped = DateStamp.apply(to: white, date: date, seed: 1)
-        let px = PixelReader.rgba(stamped.cropped(to: CGRect(x: 25, y: 90, width: 40, height: 180)))
+        let px = PixelReader.rgba(stamped.cropped(to: CGRect(x: 10, y: 30, width: 40, height: 180)))
         let reddest = stride(from: 0, to: px.count, by: 4).map { Int(px[$0]) - Int(px[$0 + 2]) }.max() ?? 0
         XCTAssertGreaterThan(reddest, 60, "the digits read as red-orange, not white on white")
     }

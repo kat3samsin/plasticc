@@ -51,12 +51,12 @@ public enum DateStamp {
         let slanted = digits.transformed(by: CGAffineTransform(a: 1, b: 0, c: tan(10 * .pi / 180), d: 1, tx: 0, ty: 0))
         // Pad with transparent margin before clamping, or edge-touching segments smear into streaks.
         let padded = slanted.composited(over: CIImage(color: .clear).cropped(to: slanted.extent.insetBy(dx: -h * 3, dy: -h * 3)))
-        let bleed = padded.clampedToExtent().applyingGaussianBlur(sigma: h * 0.06).cropped(to: slanted.extent.insetBy(dx: -h, dy: -h))
-        let halo = padded.clampedToExtent().applyingGaussianBlur(sigma: h * 0.35).cropped(to: slanted.extent.insetBy(dx: -h * 2, dy: -h * 2))
+        let bleed = padded.clampedToExtent().applyingGaussianBlur(sigma: h * 0.025).cropped(to: slanted.extent.insetBy(dx: -h, dy: -h))
+        let halo = padded.clampedToExtent().applyingGaussianBlur(sigma: h * 0.22).cropped(to: slanted.extent.insetBy(dx: -h * 2, dy: -h * 2))
             .applyingFilter("CIColorMatrix", parameters: [
-                "inputRVector": CIVector(x: 0.9, y: 0, z: 0, w: 0),
-                "inputGVector": CIVector(x: 0, y: 0.45, z: 0, w: 0),
-                "inputBVector": CIVector(x: 0, y: 0, z: 0.2, w: 0),
+                "inputRVector": CIVector(x: 0.6, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: 0.3, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: 0.13, w: 0),
             ])
         let light = bleed.applyingFilter("CIAdditionCompositing", parameters: [kCIInputBackgroundImageKey: halo])
 
@@ -65,12 +65,12 @@ public enum DateStamp {
         let placed: CIImage
         if e.height > e.width {
             // A portrait frame is the camera turned on its side: the stamp from the film's bottom-right corner
-            // runs top to bottom near the lower left, about a tenth in from the edge.
+            // runs top to bottom close to the lower-left corner.
             let turned = light.transformed(by: CGAffineTransform(rotationAngle: -.pi / 2))
             let box = turned.extent
             placed = turned.transformed(by: CGAffineTransform(
-                translationX: e.minX + e.width * 0.09 - box.minX + jitterX,
-                y: e.minY + e.height * 0.17 - box.minY + jitterY))
+                translationX: e.minX + e.width * 0.045 - box.minX + jitterX,
+                y: e.minY + e.height * 0.06 - box.minY + jitterY))
         } else {
             // Bottom right, inset 5% of the short side.
             let inset = short * 0.05

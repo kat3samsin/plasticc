@@ -90,7 +90,7 @@ The research behind this, and the next steps, are in the "accurate film emulatio
 - **Flash:** weak and fixed. The subject is lit, the background falls away to dark, and the cast is slightly cool.
 - **Halation:** most of the glow in disposable shots is lens bloom. It is modelled on the colour films only, stronger on Superia (weak antihalation) than Portra (strong).
 - **Light leaks:** film near the leader gets fogged while loading, so frame 1 leaks 55% of the time, frame 2 30%, and later frames 12%.
-- **Date stamp:** red-orange LED segments that tint toward red-orange where lit, so they show on white walls as real stamps do, in month-day-year order, `10 21 '26`. Landscape frames get it in the bottom right. On portrait frames, which are the camera turned on its side, it runs top to bottom near the lower left, as on real disposable scans.
+- **Date stamp:** red-orange LED segments that tint toward red-orange where lit, so they show on white walls as real stamps do, in month-day-year order, `10 21 '26`. Landscape frames get it in the bottom right. On portrait frames, which are the camera turned on its side, it runs top to bottom close to the lower-left corner, as on real disposable scans. The digits are crisp, with only a faint glow.
 - **Dust:** each frame gets 3–10 faint, soft white specks and, about one time in three, a very faint hair, as a lab scan picks up dust on the negative. Seeded, so the same frame always gets the same dust.
 - **Print size:** 6048 px on the long edge (24 MP). Larger originals are downsampled; 12 MP RAW is enlarged with a Lanczos resampler before the scanner sharpening and grain, so both work at print resolution, as on a real scan, and the grain looks like grain rather than enlarged pixels.
 
