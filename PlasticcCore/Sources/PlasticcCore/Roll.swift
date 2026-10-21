@@ -42,6 +42,13 @@ public struct Roll: Codable, Equatable, Sendable {
         public var seed: UInt64
         public var developedFile: String?
         public var verdict: Verdict?
+
+        public init(file: String, takenAt: Date, flash: Bool, seed: UInt64) {
+            self.file = file
+            self.takenAt = takenAt
+            self.flash = flash
+            self.seed = seed
+        }
     }
 
     public var filmID: String

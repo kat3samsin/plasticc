@@ -7,6 +7,7 @@ let package = Package(
     products: [.library(name: "PlasticcCore", targets: ["PlasticcCore"])],
     targets: [
         .target(name: "PlasticcCore"),
+        .executableTarget(name: "contact-sheet", dependencies: ["PlasticcCore"]),
         .testTarget(name: "PlasticcCoreTests", dependencies: ["PlasticcCore"]),
     ],
     swiftLanguageModes: [.v5]

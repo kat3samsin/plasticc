@@ -67,17 +67,18 @@ public final class RollStore: @unchecked Sendable {
         try lock.withLock {
             guard var roll = _current else { throw StoreError.noRoll }
             try roll.review(index: index, verdict: verdict)
-            let shot = roll.shots[index]
-            try? FileManager.default.removeItem(at: url(for: shot.file))
-            if let developed = shot.developedFile {
-                try? FileManager.default.removeItem(at: url(for: developed))
-            }
+            // Record the verdict before deleting, so the manifest never lists a print whose files are gone.
             if roll.phase == .done {
                 try? FileManager.default.removeItem(at: manifest)
                 _current = nil
             } else {
                 try write(roll)
                 _current = roll
+            }
+            let shot = roll.shots[index]
+            try? FileManager.default.removeItem(at: url(for: shot.file))
+            if let developed = shot.developedFile {
+                try? FileManager.default.removeItem(at: url(for: developed))
             }
         }
     }

@@ -4,6 +4,26 @@ A disposable film camera for iPhone. Pick a film, tear the plastic off the camer
 
 Planned with Fable 5.1 on 2026-10-20. The earlier manual-controls app lives untouched in a separate `film-cam` project; port code from there, don't copy it wholesale.
 
+## Status (2026-10-20)
+
+All ten milestones are built. The whole flow runs in the simulator, from the shop counter to the summary screen. 54 package tests pass (`swift test` in `PlasticcCore`).
+
+| Area | Where | State |
+|---|---|---|
+| Shop counter, 12/24/36, lab-order settings | `App/Pick`, `App/Settings` | Done; checked in simulator |
+| Shrink-wrap tear, canister load | `App/Unbox` | Done; checked in simulator |
+| Camera back: counter wheel, finder, flash charge and ready lamp, thumbwheel, shutter | `App/Shoot`, `App/Look` | Done; camera and flash checked on iPhone Air (milestone 4 build) |
+| Rewind crank | `App/Rewind`, `RewindCrank.swift` | Done; checked in simulator |
+| Lab envelope, countdown, notification | `App/Lab/LabView.swift` | Done; 1-hour notification not yet seen on a device |
+| Darkroom, film looks, light leaks, date stamp, fixed exposure | `App/Lab/DarkroomView.swift`, `FilmEngine.swift`, `Developer.swift` | Done; tuned on contact sheets; see `docs/film-looks.md` |
+| Print deck, keep to Photos, toss, flip, summary | `App/Review` | Done; keep and toss checked in simulator |
+| Sounds and haptics | `App/Feel/Feel.swift`, `App/Sounds`, `tools/make_sounds.py` | Synthesised and wired; not yet heard or felt on a device |
+| App icon | `tools/make_icon.swift` | Done |
+
+Still to check on the iPhone: how the haptics and sounds feel (tear, wheel, crank, shutter, flash whine), develop time and memory on a 36-frame roll, and the notification.
+
+Tools: `swift run -c release contact-sheet out.jpg photo.jpg …` in `PlasticcCore` develops photos with every film; `python3 tools/make_sounds.py` rebuilds the sounds; `swift tools/make_icon.swift App/Assets.xcassets/AppIcon.appiconset/icon.png` redraws the icon.
+
 ## Decisions
 
 | Topic | Decision |

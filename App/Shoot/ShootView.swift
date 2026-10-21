@@ -5,136 +5,105 @@ import SwiftUI
 struct ShootView: View {
     let model: RollModel
     @State private var blink = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private var roll: Roll? { model.roll }
+    private var brand: FilmBrand { (model.film ?? .superia400).brand }
     private var canWind: Bool { roll?.wound == false && !model.isCapturing }
 
     var body: some View {
-        VStack(spacing: 20) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("SNAPPY 35")
-                        .font(.headline.weight(.black))
-                    Text(model.film?.name ?? "")
-                        .font(.caption)
-                        .opacity(0.8)
+        ZStack {
+            CameraBack(brand: brand)
+
+            VStack(spacing: 14) {
+                header
+
+                Finder(model: model, blink: blink)
+                    .frame(maxHeight: 360)
+
+                band
+
+                HStack(alignment: .bottom) {
+                    FlashSwitch(state: model.flashState, ink: brand.ink) { model.setFlash($0) }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 7) {
+                        Text(canWind ? "TURN WHEEL UNTIL IT STOPS" : "READY")
+                            .font(.print(10))
+                            .tracking(1)
+                            .foregroundStyle(brand.ink.opacity(0.9))
+                            .swaps(on: canWind)
+                        WindWheel(isEnabled: canWind) { model.wind() }
+                    }
                 }
-                .foregroundStyle(Plastic.trim)
-                Spacer()
-                CounterWindow(remaining: roll?.remaining ?? 0)
-            }
+                .padding(.horizontal, 6)
 
-            finder
+                Spacer(minLength: 0)
 
-            HStack {
-                FlashSwitch(isOn: Bindable(model).flash)
-                Spacer()
-                VStack(spacing: 6) {
-                    WindWheel(isEnabled: canWind) { model.wind() }
-                    Text(canWind ? "WIND →" : "READY")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Plastic.trim.opacity(0.8))
+                ShutterButton(isArmed: roll?.wound == true, ring: brand.band) {
+                    await model.shoot()
                 }
-            }
 
-            ShutterButton(isArmed: roll?.wound == true) {
-                Task { await model.shoot() }
+                Text("DO NOT OPEN BACK · RETURN CAMERA TO LAB")
+                    .font(.print(9, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(brand.ink.opacity(0.55))
             }
+            .padding(.horizontal, 26)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
         }
-        .padding(20)
-        .frame(maxHeight: .infinity)
-        .background(Plastic.body)
         .task { await model.startCamera() }
+        // Back from Settings after allowing the camera.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, model.cameraAllowed == false { Task { await model.startCamera() } }
+        }
         .onDisappear { model.stopCamera() }
         .onChange(of: model.shotCount) {
             blink = true
             withAnimation(.easeOut(duration: 0.3).delay(0.08)) { blink = false }
         }
+        .animation(.easeInOut(duration: 0.2), value: canWind)
     }
 
-    /// Shows the scene the next press will take. On the simulator that's a sample photo.
-    private var finder: some View {
-        Color.black
-            .aspectRatio(3 / 4, contentMode: .fit)
-            .overlay {
-                if model.cameraAllowed == false {
-                    PermissionView()
-                } else if let live = model.camera as? LiveCamera {
-                    CameraPreview(session: live.session)
-                } else if let sample = model.camera as? SampleCamera, let image = sample.finderImage, model.shotCount >= 0 {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(brand.maker)
+                    .font(.print(13))
+                    .tracking(3)
+                Text(brand.line)
+                    .font(.print(26))
+                    .italic()
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text("\(brand.speed) · \(roll?.length.exposures ?? 0) EXP")
+                    .font(.print(12, weight: .heavy))
+                    .tracking(1)
+                    .opacity(0.85)
+            }
+            .foregroundStyle(brand.ink)
+            Spacer()
+            CounterDisc(remaining: roll?.remaining ?? 0)
+                #if DEBUG
+                // Hold the counter to fill the rest of the roll (debug builds only).
+                .onLongPressGesture(minimumDuration: 1) {
+                    Feel.shared.windStop()
+                    Task { await model.finishRollForTesting() }
                 }
-            }
-            .overlay { Color.black.opacity(blink ? 1 : 0) }
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Plastic.dark, lineWidth: 8)
-            }
-            .accessibilityHidden(model.cameraAllowed != false)
-    }
-}
-
-private struct CounterWindow: View {
-    let remaining: Int
-
-    var body: some View {
-        Text("\(remaining)")
-            .font(.system(size: 26, weight: .bold, design: .monospaced))
-            .foregroundStyle(Plastic.counter)
-            .frame(width: 64, height: 44)
-            .background(Plastic.dark, in: RoundedRectangle(cornerRadius: 22))
-            .accessibilityLabel("\(remaining) exposures left")
-    }
-}
-
-private struct FlashSwitch: View {
-    @Binding var isOn: Bool
-
-    var body: some View {
-        Button {
-            isOn.toggle()
-            Feel.shared.notch()
-        } label: {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isOn ? Plastic.counter : Plastic.dark)
-                    .frame(width: 12, height: 12)
-                Text("FLASH")
-                    .font(.subheadline.weight(.bold))
-            }
-            .foregroundStyle(Plastic.trim)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Plastic.dark.opacity(0.5), in: Capsule())
+                #endif
         }
-        .accessibilityLabel("Flash")
-        .accessibilityValue(isOn ? "On" : "Off")
+        .padding(.horizontal, 4)
     }
-}
 
-private struct ShutterButton: View {
-    let isArmed: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            if isArmed {
-                Feel.shared.shutter()
-                action()
-            } else {
-                Feel.shared.dud()
-            }
-        } label: {
-            Circle()
-                .fill(Plastic.trim)
-                .frame(width: 84, height: 84)
-                .overlay { Circle().strokeBorder(Plastic.dark, lineWidth: 6) }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Shutter")
-        .accessibilityHint(isArmed ? "" : "Wind the film first")
+    private var band: some View {
+        Text("SNAPPY 35 · SINGLE-USE CAMERA WITH FLASH")
+            .font(.print(10))
+            .tracking(1.4)
+            .foregroundStyle(brand.bandInk)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(brand.band, in: Capsule())
     }
 }
