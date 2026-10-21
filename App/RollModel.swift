@@ -19,7 +19,7 @@ final class RollModel {
     /// Nil until the camera has been asked for; false when access is denied.
     private(set) var cameraAllowed: Bool?
 
-    /// A roll just sorted, for the goodbye screen; cleared when you get a new camera.
+    /// A roll just sorted, for the goodbye screen; cleared when you go back for another roll.
     struct FinishedRoll {
         let film: FilmStock
         let kept: Int
@@ -110,7 +110,7 @@ final class RollModel {
         let fire = flashState == .ready
         do {
             let capture = try await camera.capture(flash: fire)
-            try store.shoot(capture.data, flash: fire, source: capture.source, sceneEV100: capture.sceneEV100,
+            try store.shoot(capture.data, flash: fire, sceneEV100: capture.sceneEV100,
                             fileExtension: capture.fileExtension)
             shotCount += 1
             // Recharge, unless the switch went off meanwhile or that was the last frame.
@@ -134,7 +134,7 @@ final class RollModel {
         while store.current?.phase == .loaded || store.current?.phase == .shooting {
             if store.current?.wound == false { try? store.wind() }
             do {
-                try store.shoot(capture.data, flash: false, source: capture.source, sceneEV100: capture.sceneEV100,
+                try store.shoot(capture.data, flash: false, sceneEV100: capture.sceneEV100,
                                 fileExtension: capture.fileExtension)
             } catch { break }
         }
@@ -225,7 +225,7 @@ final class RollModel {
         return true
     }
 
-    func newCamera() {
+    func nextRoll() {
         finished = nil
         negatives = [:]
     }

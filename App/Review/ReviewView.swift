@@ -341,25 +341,3 @@ private struct RoundButton: View {
         .accessibilityLabel(label)
     }
 }
-
-/// A warm wooden table top.
-private struct Table: View {
-    var body: some View {
-        ZStack {
-            Paper.table
-            Canvas { context, size in
-                var rng = SeededRandom(seed: 88)
-                var y: CGFloat = 0
-                while y < size.height {
-                    let h = CGFloat(2 + rng.unit() * 7)
-                    let shade = rng.unit() < 0.5 ? Color.black.opacity(0.06 + rng.unit() * 0.08) : Color.white.opacity(0.03 + rng.unit() * 0.04)
-                    context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: h)), with: .color(shade))
-                    y += h + CGFloat(rng.unit() * 6)
-                }
-            }
-            RadialGradient(colors: [.white.opacity(0.12), .black.opacity(0.35)], center: .center, startRadius: 80, endRadius: 520)
-            Grain(opacity: 0.15)
-        }
-        .ignoresSafeArea()
-    }
-}

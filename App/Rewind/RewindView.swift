@@ -1,52 +1,64 @@
 import PlasticcCore
 import SwiftUI
 
-/// The end of the roll: flip out the crank and wind the film back into its canister.
-/// Ticks get lighter and closer as the spool empties, then the leader slips free.
+/// The end of the roll: flip out the crank and wind the film back into its canister. Ticks get lighter and closer
+/// as the spool empties, then the leader slips free, the back pops open, and the canister goes in the lab envelope.
 struct RewindView: View {
     let model: RollModel
 
     @State private var crank: RewindCrank
     @State private var lastAngle: Double?
-    /// Where the arm points: always at the finger, measured from straight up.
+    /// Where the arm points, measured from straight up. It turns with the finger from wherever it's grabbed.
     @State private var armAngle: Double = 0
     @State private var released = false
     @State private var hint = false
+    @State private var backOpen = false
+    /// Resets by itself, springing the canister home, when the drag ends or the system cancels it.
+    @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.7)))
+    private var drag: CGSize = .zero
+    @State private var nearEnvelope = false
+    @State private var dropped = false
 
     init(model: RollModel) {
         self.model = model
         _crank = State(initialValue: RewindCrank(exposures: model.roll?.length.exposures ?? 24))
     }
 
-    private var brand: FilmBrand { (model.film ?? .superia400).brand }
+    private var film: FilmStock { model.film ?? .superia400 }
+    private var exposures: Int { model.roll?.length.exposures ?? 24 }
 
     var body: some View {
         ZStack {
-            CameraBack(brand: brand)
+            CameraBack()
 
             VStack(spacing: 22) {
                 VStack(spacing: 6) {
-                    Text(released ? "FILM'S IN THE CANISTER" : "ROLL FINISHED")
+                    Text(title)
                         .font(.print(28))
                         .italic()
-                        .swaps(on: released)
-                    Text(released ? "Off to the lab." : "Turn the crank to rewind the film.")
+                        .swaps(on: title)
+                    Text(instruction)
                         .font(.print(15, weight: .bold))
                         .opacity(0.85)
-                        .swaps(on: released)
+                        .swaps(on: instruction)
                 }
-                .foregroundStyle(brand.ink)
+                .foregroundStyle(Plastic.trim)
                 .multilineTextAlignment(.center)
                 .padding(.top, 40)
 
-                Spacer()
+                if backOpen {
+                    unloading
+                        .transition(.opacity)
+                } else {
+                    Spacer()
 
-                knob
+                    knob
 
-                Spacer()
+                    Spacer()
 
-                FilmLeft(progress: crank.progress, exposures: model.roll?.length.exposures ?? 0, ink: brand.ink, band: brand.band)
-                    .padding(.bottom, 30)
+                    FilmLeft(progress: crank.progress, exposures: exposures, ink: Plastic.trim, band: Plastic.accent)
+                        .padding(.bottom, 30)
+                }
             }
             .padding(.horizontal, 28)
         }
@@ -62,17 +74,16 @@ struct RewindView: View {
                 // Printed "rewind" arrow around the crank.
                 Circle()
                     .trim(from: 0.05, to: 0.82)
-                    .stroke(brand.ink.opacity(0.35), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [2, 9]))
+                    .stroke(Plastic.trim.opacity(0.35), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [2, 9]))
                     .frame(width: 300, height: 300)
                     .rotationEffect(.degrees(hint && crank.angle == 0 ? 360 : 0))
                     .opacity(released ? 0 : 1)
                 // Film left on the spool, as a ring that empties.
                 Circle()
                     .trim(from: 0, to: 1 - crank.progress)
-                    .stroke(brand.band, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .stroke(Plastic.accent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 262, height: 262)
-                    .animation(.linear(duration: 0.1), value: crank.progress)
                 CrankKnob(angle: armAngle, released: released)
                     .frame(width: 230, height: 230)
             }
@@ -99,12 +110,12 @@ struct RewindView: View {
         // Too close to the spindle to read a direction.
         guard dx * dx + dy * dy > 18 * 18 else { lastAngle = nil; return }
         let angle = atan2(dy, dx)
-        armAngle = angle + .pi / 2
         defer { lastAngle = angle }
         guard let lastAngle else { return }
         var delta = angle - lastAngle
         if delta > .pi { delta -= 2 * .pi }
         if delta < -.pi { delta += 2 * .pi }
+        armAngle += delta
         for event in crank.turn(by: delta) { handle(event) }
     }
 
@@ -116,10 +127,148 @@ struct RewindView: View {
             Feel.shared.crankRelease()
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { released = true }
             Task {
-                try? await Task.sleep(for: .seconds(1.6))
-                model.rewind()
+                try? await Task.sleep(for: .seconds(1.1))
+                Feel.shared.backOpen()
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { backOpen = true }
             }
         }
+    }
+
+    private var title: String {
+        if dropped { return "OFF TO THE LAB" }
+        if backOpen { return "SEND IT TO THE LAB" }
+        return released ? "FILM'S IN THE CANISTER" : "ROLL FINISHED"
+    }
+
+    private var instruction: String {
+        if dropped { return "Your prints will be ready soon." }
+        if backOpen { return "Drag the canister into the envelope." }
+        return released ? "Opening the back…" : "Turn the crank to rewind the film."
+    }
+
+    // MARK: - Unloading
+
+    /// Where the envelope's slot sits, in bay coordinates.
+    private static let slot = CGPoint(x: FilmBay.size.width / 2, y: FilmBay.size.height + 150)
+
+    private var unloading: some View {
+        ZStack(alignment: .topLeading) {
+            FilmBay()
+
+            LabMailer(film: film, lit: nearEnvelope, filled: dropped)
+                .frame(width: 230, height: 150)
+                .offset(x: Self.slot.x - 115, y: Self.slot.y - 40)
+                .zIndex(1)
+
+            // The rewound canister, just its tongue left out.
+            FilmCanister(film: film, exposures: exposures, leader: 14)
+                .scaleEffect(nearEnvelope || dropped ? 0.85 : 1, anchor: .top)
+                .offset(x: canisterOrigin.x, y: canisterOrigin.y)
+                // Once it's dropped it slides down behind the envelope's front, into the slot.
+                .zIndex(dropped ? 0.5 : 2)
+                .gesture(dropped ? nil : canisterGesture)
+                .accessibilityElement()
+                .accessibilityLabel("Film canister, \(film.name)")
+                .accessibilityAction(named: "Send to the lab") { drop() }
+
+            if !dropped, drag == .zero {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .black))
+                    Text("DROP IN").font(.print(11)).tracking(2)
+                }
+                .foregroundStyle(Plastic.accent)
+                .offset(x: Self.slot.x - 40, y: FilmBay.size.height + 30 + (hint ? 6 : 0))
+                .allowsHitTesting(false)
+            }
+        }
+        .frame(width: FilmBay.size.width, height: FilmBay.size.height + 260, alignment: .topLeading)
+        .frame(maxHeight: .infinity)
+        // A drag the system cancelled springs home without an end: unlight the envelope.
+        .onChange(of: drag) { _, drag in if drag == .zero, nearEnvelope, !dropped { nearEnvelope = false } }
+    }
+
+    private var canisterOrigin: CGPoint {
+        if dropped { return CGPoint(x: Self.slot.x - 45, y: Self.slot.y - 8) }
+        return CGPoint(x: FilmBay.seat.x + drag.width, y: FilmBay.seat.y + drag.height)
+    }
+
+    private var canisterGesture: some Gesture {
+        DragGesture()
+            .updating($drag) { value, drag, _ in drag = value.translation }
+            .onChanged { value in
+                let isNear = Self.overSlot(value.translation)
+                if isNear != nearEnvelope {
+                    withAnimation(.easeOut(duration: 0.15)) { nearEnvelope = isNear }
+                    if isNear { Feel.shared.threshold() }
+                }
+            }
+            .onEnded { value in
+                if Self.overSlot(value.translation) { drop() }
+            }
+    }
+
+    /// Whether the canister's middle, dragged this far, is over the envelope's slot.
+    private static func overSlot(_ translation: CGSize) -> Bool {
+        let x = FilmBay.seat.x + 45 + translation.width, y = FilmBay.seat.y + 68 + translation.height
+        return hypot(x - slot.x, y - slot.y) < 110
+    }
+
+    private func drop() {
+        guard !dropped else { return }
+        Feel.shared.envelopeDrop()
+        withAnimation(.easeIn(duration: 0.32)) {
+            dropped = true
+            nearEnvelope = false
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            model.rewind()
+        }
+    }
+}
+
+/// The lab's film mailer: a kraft envelope with a slot, waiting for the canister.
+private struct LabMailer: View {
+    let film: FilmStock
+    let lit: Bool
+    let filled: Bool
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Paper.kraft)
+                .overlay(Grain(opacity: 0.2, blend: .multiply))
+                .overlay(alignment: .top) {
+                    // The open mouth, dark inside.
+                    Capsule()
+                        .fill(Color(red: 0.25, green: 0.17, blue: 0.1))
+                        .frame(height: 16)
+                        .padding(.horizontal, 26)
+                        .padding(.top, 14)
+                        .shadow(color: lit ? Plastic.lamp : .clear, radius: 10)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("PLASTICC PHOTO LAB")
+                            .font(.print(13))
+                            .foregroundStyle(Paper.stampRed)
+                        Text("FILM: \(film.name.uppercased())")
+                            .font(.typed(10))
+                            .foregroundStyle(Paper.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Text("DEVELOP & PRINT · 1 SET 4×6")
+                            .font(.typed(10))
+                            .foregroundStyle(Paper.fadedInk)
+                    }
+                    .padding(14)
+                }
+        }
+        .rotationEffect(.degrees(lit ? -3 : -1.5))
+        .scaleEffect(filled ? 1.04 : (lit ? 1.03 : 1))
+        .shadow(color: .black.opacity(0.45), radius: 10, y: 8)
+        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: filled)
+        .accessibilityHidden(true)
     }
 }
 
@@ -183,13 +332,15 @@ private struct FilmLeft: View {
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geo in
-                let width = geo.size.width * (1 - progress)
                 ZStack(alignment: .leading) {
                     Capsule().fill(.black.opacity(0.15))
+                    // The strip slides left into the camera, sprocket holes and all.
                     FilmStrip()
-                        .frame(width: max(0, width))
+                        .frame(width: geo.size.width)
                         .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .offset(x: -geo.size.width * progress)
                 }
+                .clipped()
             }
             .frame(height: 34)
             Text(progress >= 1 ? "ALL WOUND IN" : "\(framesOut) \(framesOut == 1 ? "FRAME" : "FRAMES") STILL OUT")

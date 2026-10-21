@@ -2,7 +2,7 @@ import XCTest
 @testable import PlasticcCore
 
 final class RollLengthTests: XCTestCase {
-    func testLengthsAreTwelveTwentyFourThirtySix() {
-        XCTAssertEqual(RollLength.allCases.map(\.exposures), [12, 24, 36])
+    func testLengthsAreThreeForTestingThenTwelveTwentyFourThirtySix() {
+        XCTAssertEqual(RollLength.allCases.map(\.exposures), [3, 12, 24, 36])
     }
 }

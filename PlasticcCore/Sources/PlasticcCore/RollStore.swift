@@ -39,14 +39,14 @@ public final class RollStore: @unchecked Sendable {
     public func wind() throws { try update { try $0.wind() } }
     public func rewind(readyAt: Date) throws { try update { try $0.rewind(readyAt: readyAt) } }
 
-    /// Saves a shot's original. `fileExtension` follows the data: "jpg" for phone photos, "heic" for RAW.
+    /// Saves a shot's original. `fileExtension` follows the data: "jpg" or "heic".
     public func shoot(_ image: Data, flash: Bool, takenAt: Date = Date(), seed: UInt64 = .random(in: .min ... .max),
-                      source: CaptureSource = .phone, sceneEV100: Double? = nil, fileExtension: String = "jpg") throws {
+                      sceneEV100: Double? = nil, fileExtension: String = "jpg") throws {
         try update { roll in
             // Check the move before touching disk, so a refused shot leaves no file behind.
             var next = roll
             let file = Self.fileName(index: roll.shots.count, kind: "", ext: fileExtension)
-            try next.shoot(file: file, takenAt: takenAt, flash: flash, seed: seed, source: source, sceneEV100: sceneEV100)
+            try next.shoot(file: file, takenAt: takenAt, flash: flash, seed: seed, sceneEV100: sceneEV100)
             // The image goes first: the manifest must never point at a missing file.
             try image.write(to: url(for: file), options: .atomic)
             roll = next

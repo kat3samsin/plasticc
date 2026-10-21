@@ -4,7 +4,6 @@ import PlasticcCore
 /// One frame's original, ready for the roll.
 struct Capture: Sendable {
     let data: Data
-    let source: CaptureSource
     /// Scene brightness as EV at ISO 100, when the file's own EXIF won't carry it.
     let sceneEV100: Double?
     let fileExtension: String

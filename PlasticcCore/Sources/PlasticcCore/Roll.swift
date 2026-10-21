@@ -27,7 +27,6 @@ public enum RollError: Error, Equatable {
     case notWound
     case alreadyWound
     case noSuchShot
-    case notDeveloped
     case alreadyReviewed
 }
 
@@ -40,20 +39,17 @@ public struct Roll: Codable, Equatable, Sendable {
         public var flash: Bool
         /// Drives grain and light leaks, so a frame always develops the same way.
         public var seed: UInt64
-        /// How the original was made. Nil on rolls shot before RAW capture, which were all phone photos.
-        public var source: CaptureSource?
         /// How bright the scene was, as EV at ISO 100, when the original's own EXIF can't say.
         public var sceneEV100: Double?
         public var developedFile: String?
         public var verdict: Verdict?
 
         public init(file: String, takenAt: Date, flash: Bool, seed: UInt64,
-                    source: CaptureSource = .phone, sceneEV100: Double? = nil) {
+                    sceneEV100: Double? = nil) {
             self.file = file
             self.takenAt = takenAt
             self.flash = flash
             self.seed = seed
-            self.source = source
             self.sceneEV100 = sceneEV100
         }
     }
@@ -92,10 +88,10 @@ public struct Roll: Codable, Equatable, Sendable {
     }
 
     public mutating func shoot(file: String, takenAt: Date, flash: Bool, seed: UInt64,
-                               source: CaptureSource = .phone, sceneEV100: Double? = nil) throws {
+                               sceneEV100: Double? = nil) throws {
         try require(.shooting)
         guard wound else { throw RollError.notWound }
-        shots.append(Shot(file: file, takenAt: takenAt, flash: flash, seed: seed, source: source, sceneEV100: sceneEV100))
+        shots.append(Shot(file: file, takenAt: takenAt, flash: flash, seed: seed, sceneEV100: sceneEV100))
         wound = false
         if remaining == 0 { phase = .rewinding }
     }

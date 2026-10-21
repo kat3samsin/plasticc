@@ -1,7 +1,7 @@
 import PlasticcCore
 import SwiftUI
 
-/// The roll's done: how many prints you kept, and a fresh camera.
+/// The roll's done: how many prints you kept, and back to the film counter for another.
 struct SummaryView: View {
     let model: RollModel
     let finished: RollModel.FinishedRoll
@@ -28,12 +28,18 @@ struct SummaryView: View {
                     .font(.print(11))
                     .tracking(2)
                     .foregroundStyle(finished.film.brand.band)
+                Text("Your Snappy 35 is empty and ready for the next roll.")
+                    .font(.typed(14))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Paper.fadedInk)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 10)
                 Spacer()
                 Button {
                     Feel.shared.click()
-                    model.newCamera()
+                    model.nextRoll()
                 } label: {
-                    Text("Get a new camera")
+                    Text("Buy another roll")
                         .font(.print(18, weight: .heavy))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)

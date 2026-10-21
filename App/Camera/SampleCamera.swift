@@ -20,7 +20,7 @@ final class SampleCamera: PhotoCapturing {
             throw SampleError.missing(name)
         }
         next = (next + 1) % names.count
-        return Capture(data: try Data(contentsOf: url), source: .phone, sceneEV100: nil, fileExtension: "jpg")
+        return Capture(data: try Data(contentsOf: url), sceneEV100: nil, fileExtension: "jpg")
     }
 
     private func image(_ name: String) -> UIImage? {

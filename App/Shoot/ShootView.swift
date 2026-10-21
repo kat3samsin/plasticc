@@ -8,12 +8,11 @@ struct ShootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var roll: Roll? { model.roll }
-    private var brand: FilmBrand { (model.film ?? .superia400).brand }
     private var canWind: Bool { roll?.wound == false && !model.isCapturing }
 
     var body: some View {
         ZStack {
-            CameraBack(brand: brand)
+            CameraBack()
 
             VStack(spacing: 14) {
                 header
@@ -21,16 +20,14 @@ struct ShootView: View {
                 Finder(model: model, blink: blink)
                     .frame(maxHeight: 360)
 
-                band
-
                 HStack(alignment: .bottom) {
-                    FlashSwitch(state: model.flashState, ink: brand.ink) { model.setFlash($0) }
+                    FlashSwitch(state: model.flashState, ink: Plastic.trim) { model.setFlash($0) }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 7) {
                         Text(canWind ? "TURN WHEEL UNTIL IT STOPS" : "READY")
                             .font(.print(10))
                             .tracking(1)
-                            .foregroundStyle(brand.ink.opacity(0.9))
+                            .foregroundStyle(Plastic.trim.opacity(0.9))
                             .swaps(on: canWind)
                         WindWheel(isEnabled: canWind) { model.wind() }
                     }
@@ -39,14 +36,14 @@ struct ShootView: View {
 
                 Spacer(minLength: 0)
 
-                ShutterButton(isArmed: roll?.wound == true, ring: brand.band) {
+                ShutterButton(isArmed: roll?.wound == true, ring: Plastic.accent) {
                     await model.shoot()
                 }
 
-                Text("DO NOT OPEN BACK · RETURN CAMERA TO LAB")
+                Text("DO NOT OPEN BACK UNTIL FILM IS REWOUND")
                     .font(.print(9, weight: .bold))
                     .tracking(1.2)
-                    .foregroundStyle(brand.ink.opacity(0.55))
+                    .foregroundStyle(Plastic.trim.opacity(0.45))
             }
             .padding(.horizontal, 26)
             .padding(.top, 12)
@@ -67,21 +64,22 @@ struct ShootView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(brand.maker)
-                    .font(.print(13))
-                    .tracking(3)
-                Text(brand.line)
-                    .font(.print(26))
-                    .italic()
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                Text("\(brand.speed) · \(roll?.length.exposures ?? 0) EXP")
-                    .font(.print(12, weight: .heavy))
+            // The camera's name moulded into the plastic, and the window onto the canister inside.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 0) {
+                    Text("SNAPPY")
+                        .foregroundStyle(Plastic.trim)
+                    Text(" 35")
+                        .foregroundStyle(Plastic.accent)
+                }
+                .font(.print(26))
+                .italic()
+                Text("35MM · FOCUS FREE · FLASH")
+                    .font(.print(8, weight: .heavy))
                     .tracking(1)
-                    .opacity(0.85)
+                    .foregroundStyle(Plastic.trim.opacity(0.5))
+                FilmWindow(film: model.film)
             }
-            .foregroundStyle(brand.ink)
             Spacer()
             CounterDisc(remaining: roll?.remaining ?? 0)
                 #if DEBUG
@@ -93,17 +91,5 @@ struct ShootView: View {
                 #endif
         }
         .padding(.horizontal, 4)
-    }
-
-    private var band: some View {
-        Text("SNAPPY 35 · SINGLE-USE CAMERA WITH FLASH")
-            .font(.print(10))
-            .tracking(1.4)
-            .foregroundStyle(brand.bandInk)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(brand.band, in: Capsule())
     }
 }

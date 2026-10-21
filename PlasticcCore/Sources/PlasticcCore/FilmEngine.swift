@@ -16,21 +16,21 @@ public final class FilmEngine: @unchecked Sendable {
     ///   - frameIndex: 0 for the first frame on the roll; the first two are fogged more often while loading.
     ///   - date: the date to imprint, or nil for no stamp.
     ///   - exposure: stops away from a good exposure, from `disposableExposure`; negative is dark.
-    ///   - source: how `image` was made; a RAW original carries highlights above white.
     ///   - white: the decoded linear light to print as white, set per frame (see `Developer.scanWhite`).
     public func develop(_ image: CIImage, film: FilmStock, seed: UInt64, frameIndex: Int, flash: Bool, date: Date?,
-                        exposure: Double = 0, source: CaptureSource = .phone, white: Double? = nil) -> CIImage {
+                        exposure: Double = 0, white: Double? = nil) -> CIImage {
         let framed = Self.cropToPrint(image)
         let extent = framed.extent
         // Effect sizes are tuned at a 1000 px long edge, so every resolution looks alike.
         let scale = max(extent.width, extent.height) / 1000
         var out = exposure == 0 ? framed : framed.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: exposure])
-        out = applyingLUT(out, film: film, source: source, white: white)
-        out = softened(out, sigma: film.softness * scale, extent: extent)
-        // A lab scanner's unsharp mask, before the grain so the grain itself stays soft.
+        out = applyingLUT(out, film: film, white: white)
+        // A lab scanner's unsharp mask, before the grain so the grain itself stays soft, and before the lens's
+        // edge softness so the centre is crisp and the edges stay soft.
         out = out.applyingFilter("CISharpenLuminance", parameters: [
             kCIInputSharpnessKey: Self.scanSharpening, kCIInputRadiusKey: 0.35 * scale,
         ])
+        out = softened(out, sigma: film.softness * scale, extent: extent)
         if film.halation > 0 { out = haloed(out, source: framed, amount: film.halation, extent: extent, scale: scale) }
         if flash { out = flashed(out, extent: extent) }
         // Underexposed negatives print grainier; well-exposed, dense ones in bright light print finer.
@@ -67,9 +67,13 @@ public final class FilmEngine: @unchecked Sendable {
     /// unless the flash fired, which reaches about two metres.
     public static func disposableExposure(sceneEV100: Double, flash: Bool) -> Double {
         let delta = sceneEV100 - fixedEV100
-        let printed = delta >= 0 ? min(0.3, delta * 0.1) : min(0, delta + 2)
-        return max(-2.6, flash ? max(printed, -0.4) : printed)
+        // Bright scenes print at normal: the scanner prints a dense negative down to it.
+        let printed = delta >= 0 ? 0 : min(0, delta + 2)
+        return max(-2.6, (flash ? max(printed, -0.4) : printed) + printOffset)
     }
+
+    /// Every print sits this many stops under, so frames never look washed out next to the phone's own photos.
+    static let printOffset = -0.5
 
     /// The largest centred 2:3 crop, portrait or landscape to match the frame, moved to the origin.
     public static func cropToPrint(_ image: CIImage) -> CIImage {
@@ -89,26 +93,26 @@ public final class FilmEngine: @unchecked Sendable {
 
     // MARK: - Steps
 
-    private func cube(for film: FilmStock, source: CaptureSource, white: Double?) -> Data {
+    private func cube(for film: FilmStock, white: Double?) -> Data {
         lock.lock()
         defer { lock.unlock() }
-        let key = "\(film.id)-\(source.rawValue)-\(white.map { String($0) } ?? "full")"
+        let key = "\(film.id)-\(white.map { String($0) } ?? "full")"
         if let cached = cubes[key] { return cached }
-        let data = film.look.cubeData(size: Self.cubeSize, source: source, white: white)
+        let data = film.look.cubeData(size: Self.cubeSize, white: white)
         cubes[key] = data
         return data
     }
 
-    private func applyingLUT(_ image: CIImage, film: FilmStock, source: CaptureSource, white: Double?) -> CIImage {
+    private func applyingLUT(_ image: CIImage, film: FilmStock, white: Double?) -> CIImage {
         image.applyingFilter("CIColorCubeWithColorSpace", parameters: [
             "inputCubeDimension": Self.cubeSize,
-            "inputCubeData": cube(for: film, source: source, white: white),
+            "inputCubeData": cube(for: film, white: white),
             "inputColorSpace": Self.sRGB,
         ])
     }
 
     /// How hard the lab's scanner sharpens, as `CISharpenLuminance` sharpness.
-    static let scanSharpening = 0.3
+    static let scanSharpening = 0.45
 
     /// The lens: sharp in the middle, a touch softer toward the corners.
     private func softened(_ image: CIImage, sigma: Double, extent: CGRect) -> CIImage {
@@ -116,8 +120,8 @@ public final class FilmEngine: @unchecked Sendable {
         let long = max(extent.width, extent.height)
         let mask = CIFilter(name: "CIRadialGradient", parameters: [
             "inputCenter": CIVector(x: extent.midX, y: extent.midY),
-            "inputRadius0": long * 0.42,
-            "inputRadius1": long * 0.8,
+            "inputRadius0": long * 0.2,
+            "inputRadius1": long * 0.65,
             "inputColor0": CIColor.black,
             "inputColor1": CIColor.white,
         ])!.outputImage!
@@ -174,10 +178,10 @@ public final class FilmEngine: @unchecked Sendable {
         guard grain.rms > 0 else { return image }
         let size = grain.size * Double(scale)
         // Each layer is scaled to unit spread, so the two add up to exactly `grain.rms`.
-        let fine = grainLayer(seed: seed, sigma: max(0.7, 0.32 * size), weight: 0.8, chroma: grain.chroma,
+        let fine = grainLayer(seed: seed, sigma: max(0.7, 0.32 * size), weight: 0.92, chroma: grain.chroma,
                               alpha: 1, extent: extent)
         // Alpha 0, so adding it to the fine layer doesn't double the alpha and halve the result.
-        let coarse = grainLayer(seed: seed &* 0x9E37_79B9_7F4A_7C15, sigma: max(1.4, 1.1 * size), weight: 0.6,
+        let coarse = grainLayer(seed: seed &* 0x9E37_79B9_7F4A_7C15, sigma: max(1.4, 1.1 * size), weight: 0.4,
                                 chroma: grain.chroma, alpha: 0, extent: extent)
         // Soft light against mid-grey moves a midtone by about 0.45 × (blend − 0.5).
         let k = CGFloat(grain.rms / (255 * 0.45))

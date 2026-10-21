@@ -2,7 +2,8 @@ import CoreGraphics
 import CoreImage
 
 /// Dust and the odd hair on the negative, as a lab scan picks them up: each blocks light, so it prints as a
-/// small, soft white mark. Seeded, so a frame always gets the same specks. Kept faint and few.
+/// small, soft white mark. Seeded, so a frame always gets the same specks. Specks are faint and few; most
+/// frames also get a small hair.
 enum Dust {
     /// - Parameter scale: the print's long edge over 1000, so marks keep their size at any resolution.
     static func apply(to image: CIImage, seed: UInt64, scale: CGFloat) -> CIImage {
@@ -25,8 +26,8 @@ enum Dust {
             marks = speck.composited(over: marks)
         }
 
-        // Hairs: about one frame in three gets one, very faint.
-        let hairs = rng.unit() < 0.35 ? 1 + (rng.unit() < 0.2 ? 1 : 0) : 0
+        // Hairs: most frames get a small one, now and then two.
+        let hairs = rng.unit() < 0.85 ? 1 + (rng.unit() < 0.2 ? 1 : 0) : 0
         for _ in 0..<hairs {
             if let hair = hair(rng: &rng, scale: scale, extent: e) { marks = hair.composited(over: marks) }
         }
@@ -38,15 +39,15 @@ enum Dust {
 
     /// A thin, loosely curling hair drawn into its own small patch at full resolution.
     private static func hair(rng: inout SeededRandom, scale: CGFloat, extent e: CGRect) -> CIImage? {
-        let side = Int(70 * scale)
+        let side = Int(45 * scale)
         guard side > 8, let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
                                             space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         let s = CGFloat(side)
         func point() -> CGPoint { CGPoint(x: s * (0.1 + 0.8 * CGFloat(rng.unit())), y: s * (0.1 + 0.8 * CGFloat(rng.unit()))) }
         let start = point(), end = point()
-        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.18 + 0.14 * rng.unit()))
-        ctx.setLineWidth(max(1, 0.2 * scale))
+        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.4 + 0.2 * rng.unit()))
+        ctx.setLineWidth(max(1, 0.25 * scale))
         ctx.setLineCap(.round)
         ctx.move(to: start)
         ctx.addCurve(to: end, control1: point(), control2: point())

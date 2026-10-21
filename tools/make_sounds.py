@@ -2,7 +2,7 @@
 """Synthesize the Plasticc sound kit from scratch (no samples, no downloads).
 
 Makes every UI sound for the disposable-camera app (shutter, wind/crank
-ratchets, flash whine, shrink-wrap crinkles, prints, lab bell...) as mono
+ratchets, flash whine, the film box, tube and canister, prints, lab bell...) as mono
 44.1 kHz 16-bit WAV in a temp dir, prints a sanity check for each (peak dBFS,
 duration, boundary samples, DC), then converts each to CAF in App/Sounds/.
 
@@ -279,29 +279,6 @@ def flash_ready():
     return finish(buf, -16, 0.002, 0.008)
 
 
-def crinkle(seed, length):
-    rng = np.random.default_rng(seed)
-    buf = np.zeros(n_of(length))
-    # Rate wobbles over the gesture so each file has its own shape.
-    peak_at = rng.uniform(0.2, 0.8)
-    base = rng.uniform(90, 180)
-    rate = lambda u: base * (0.35 + np.exp(-((u - peak_at) / 0.3) ** 2))
-    crackle_events(rng, buf, 0.004, length - 0.012, rate, cluster=rng.uniform(0.25, 0.5))
-    return finish(buf, -8, 0.003, 0.010)
-
-
-def tear():
-    rng = np.random.default_rng(601)
-    length = 0.450
-    buf = np.zeros(n_of(length))
-    rate = lambda u: 900 * np.sin(np.pi * min(u / 0.35, 1) / 2) ** 2 * (1 - u) ** 1.6 + 40
-    crackle_events(rng, buf, 0.004, length - 0.02, rate, cluster=0.45)
-    whoosh = bandpass(rng.standard_normal(n_of(0.40)), 700, 4500)
-    whoosh = whoosh / np.max(np.abs(whoosh)) * hump(0.40, 0.3, 2.0)
-    place(buf, whoosh, 0.010, 0.18)
-    return finish(buf, -5, 0.003, 0.040)
-
-
 def canister_clunk():
     rng = np.random.default_rng(701)
     length = 0.150
@@ -398,6 +375,152 @@ def lab_bell():
     return finish(buf, -8, 0.002, 0.120)
 
 
+def box_slide(seed, length):
+    """A film box sliding along the wooden shelf: dry card on wood, low and short."""
+    rng = np.random.default_rng(seed)
+    buf = np.zeros(n_of(length))
+    place(buf, paper_swoosh(rng, length - 0.01, 300, 2600, 0.3, 3500, 900, grain=0.7), 0.004)
+    return finish(buf, -15, 0.004, 0.020)
+
+
+def bag():
+    """The roll dropped into a paper shop bag: a crisp rustle and a soft bump."""
+    rng = np.random.default_rng(1401)
+    length = 0.320
+    buf = np.zeros(n_of(length))
+    t = 0.004
+    while t < length - 0.06:
+        dur = rng.uniform(0.02, 0.06)
+        g = paper_swoosh(rng, dur, 700, 7000, rng.uniform(0.15, 0.5), rng.uniform(5000, 9000), rng.uniform(1800, 3200))
+        place(buf, g, t, rng.uniform(0.3, 1.0) * (1 - t / length) ** 0.6)
+        t += rng.uniform(0.01, 0.03)
+    place(buf, resonant_body(0.08, [(150, 0.6, 0.02), (310, 0.25, 0.01)]), 0.05, 0.6)
+    return finish(buf, -9, 0.003, 0.040)
+
+
+def flap_creak(seed, length):
+    """The tuck tab dragging against the box: card stick-slip, a cluster of soft low clicks."""
+    rng = np.random.default_rng(seed)
+    buf = np.zeros(n_of(length))
+    crackle_events(rng, buf, 0.004, length - 0.012, lambda u: 140 * np.sin(np.pi * u) + 30,
+                   lo=500, hi=3200, cluster=0.5)
+    place(buf, paper_swoosh(rng, length - 0.01, 400, 2500, 0.4, 2600, 1200, grain=0.8), 0.004, 0.25)
+    return finish(buf, -11, 0.003, 0.012)
+
+
+def flap_open():
+    """The tab pops free of its slot and the flap swings up: a papery snap and a hollow card thunk."""
+    rng = np.random.default_rng(1501)
+    length = 0.220
+    buf = np.zeros(n_of(length))
+    place(buf, noise_burst(rng, 0.012, 900, 5000, 0.0012), 0.003)
+    place(buf, resonant_body(0.09, [(240, 0.7, 0.014), (520, 0.35, 0.008), (1100, 0.15, 0.004)]), 0.004)
+    place(buf, paper_swoosh(rng, 0.14, 500, 3500, 0.3, 4000, 1200), 0.03, 0.35)
+    return finish(buf, -6, 0.002, 0.040)
+
+
+def tube_slide(seed, length):
+    """The plastic tube rubbing up past the cardboard: a grainy squeak."""
+    rng = np.random.default_rng(seed)
+    buf = np.zeros(n_of(length))
+    rub = bandpass(rng.standard_normal(n_of(length - 0.01)), 900, 5000)
+    rub /= np.max(np.abs(rub)) + 1e-12
+    squeak = sweep(length - 0.01, np.linspace(1150, 1300, n_of(length - 0.01)) * rng.uniform(0.9, 1.1), 0.35)
+    wobble = 0.6 + 0.4 * np.sin(2 * np.pi * rng.uniform(25, 40) * time_axis(length - 0.01))
+    place(buf, (rub * 0.8 + squeak * wobble) * hump(length - 0.01, 0.3, 1.5), 0.004)
+    return finish(buf, -16, 0.003, 0.012)
+
+
+def tube_out():
+    """The tube clears the box and is set down: a hollow plastic tock."""
+    rng = np.random.default_rng(1601)
+    length = 0.140
+    buf = np.zeros(n_of(length))
+    place(buf, noise_burst(rng, 0.010, 1200, 6000, 0.0009), 0.003, 0.7)
+    place(buf, resonant_body(0.12, [(640, 0.8, 0.012), (1480, 0.4, 0.006), (2950, 0.15, 0.003)]), 0.003)
+    return finish(buf, -7, 0.002, 0.030)
+
+
+def tube_pop():
+    """The lid snapping off: air rushing into the tube (a falling pitch) over a sharp plastic snap."""
+    rng = np.random.default_rng(1701)
+    length = 0.180
+    buf = np.zeros(n_of(length))
+    t = time_axis(0.06)
+    pop = sweep(0.06, 950 * (260 / 950) ** np.clip(t / 0.03, 0, 1)) * np.exp(-t / 0.012)
+    place(buf, pop, 0.003)
+    place(buf, noise_burst(rng, 0.008, 2500, 9000, 0.0006), 0.003, 0.7)
+    place(buf, resonant_body(0.05, [(2100, 0.35, 0.006), (3700, 0.2, 0.003)]), 0.004)
+    # The lid skittering away.
+    for at, g in ((0.075, 0.25), (0.11, 0.14), (0.135, 0.08)):
+        place(buf, click(rng, 0.012, 1800, 7000, 0.0008, 1900 * rng.uniform(0.9, 1.1), 0.4, 0.003), at, g)
+    return finish(buf, -3, 0.001, 0.030)
+
+
+def canister_roll():
+    """The metal canister sliding out of the tube into your palm: a little rattle, then a soft clunk."""
+    rng = np.random.default_rng(1801)
+    length = 0.300
+    buf = np.zeros(n_of(length))
+    at = 0.004
+    for k in range(6):
+        place(buf, resonant_body(0.03, [(3200 * rng.uniform(0.95, 1.05), 0.4, 0.004), (5100, 0.2, 0.002)]), at, 0.25 + 0.05 * k)
+        at += 0.026 - 0.003 * k
+    t = time_axis(0.12)
+    thud = sweep(0.12, 170 * (120 / 170) ** np.clip(t / 0.05, 0, 1)) * np.exp(-t / 0.02)
+    place(buf, thud, at + 0.01)
+    place(buf, resonant_body(0.07, [(520, 0.4, 0.01), (1250, 0.2, 0.005)]), at + 0.011)
+    return finish(buf, -5, 0.002, 0.040)
+
+
+def leader_tick(seed, pitch):
+    """One sprocket hole of leader dragged over the gate: a tiny dry tick."""
+    rng = np.random.default_rng(seed)
+    length = 0.016
+    buf = np.zeros(n_of(length))
+    place(buf, click(rng, length - 0.002, 2500 * pitch, 9000, 0.0006, 1800 * pitch, 0.5, 0.0015), 0.001)
+    return finish(buf, -14, 0.0008, 0.004)
+
+
+def leader_catch():
+    """The tongue caught by the take-up spool: two quick metal clicks and a small spring ring."""
+    rng = np.random.default_rng(1901)
+    length = 0.160
+    buf = np.zeros(n_of(length))
+    for at, g in ((0.003, 1.0), (0.048, 0.7)):
+        place(buf, noise_burst(rng, 0.006, 3000, 9500, 0.0005), at, g)
+        place(buf, resonant_body(0.09, [(2650, 0.45, 0.012), (4100, 0.25, 0.008)]), at, g)
+    return finish(buf, -6, 0.001, 0.040)
+
+
+def back_open():
+    """The back's latch giving way, then the door's spring flipping it open: click, boing, hollow knock."""
+    rng = np.random.default_rng(2001)
+    length = 0.320
+    buf = np.zeros(n_of(length))
+    place(buf, noise_burst(rng, 0.008, 2200, 8000, 0.0008), 0.003)
+    place(buf, resonant_body(0.04, [(1900, 0.5, 0.004), (3300, 0.25, 0.003)]), 0.003)
+    t = time_axis(0.26)
+    spring = np.sin(2 * np.pi * (190 * t + 6 * np.sin(2 * np.pi * 14 * t) / (2 * np.pi * 14))) * np.exp(-t / 0.07)
+    place(buf, spring, 0.012, 0.45)
+    place(buf, resonant_body(0.09, [(420, 0.6, 0.014), (980, 0.3, 0.007)]), 0.02, 0.6)
+    return finish(buf, -5, 0.002, 0.050)
+
+
+def envelope_drop():
+    """The canister dropped into the lab envelope: a paper swish and a muffled bump at the bottom."""
+    rng = np.random.default_rng(2101)
+    length = 0.300
+    buf = np.zeros(n_of(length))
+    place(buf, paper_swoosh(rng, 0.13, 700, 6000, 0.25, 7000, 2000), 0.004, 0.6)
+    t = time_axis(0.15)
+    thud = sweep(0.15, 140 * (95 / 140) ** np.clip(t / 0.06, 0, 1)) * np.exp(-t / 0.03)
+    place(buf, thud, 0.11)
+    place(buf, resonant_body(0.08, [(330, 0.35, 0.012), (760, 0.15, 0.006)]), 0.111)
+    crackle_events(rng, buf, 0.11, 0.2, lambda u: 120 * (1 - u) + 10, lo=1500, hi=6000, cluster=0.2, gain=0.4)
+    return finish(buf, -5, 0.003, 0.050)
+
+
 def build():
     sounds = {"shutter": shutter()}
     for i, (seed, pitch, bright, length) in enumerate(
@@ -409,11 +532,24 @@ def build():
     sounds["crank_release"] = crank_release()
     sounds["flash_charge"] = flash_charge()
     sounds["flash_ready"] = flash_ready()
-    for i, length in enumerate([0.09, 0.14, 0.21, 0.12, 0.18, 0.10], 1):
-        sounds[f"crinkle_{i}"] = crinkle(500 + i, length)
-    sounds["tear"] = tear()
+    for i, length in enumerate([0.12, 0.16], 1):
+        sounds[f"box_slide_{i}"] = box_slide(1400 + i, length)
+    sounds["bag"] = bag()
+    for i, length in enumerate([0.08, 0.11, 0.095], 1):
+        sounds[f"flap_creak_{i}"] = flap_creak(1500 + i, length)
+    sounds["flap_open"] = flap_open()
+    for i, length in enumerate([0.08, 0.10, 0.07], 1):
+        sounds[f"tube_slide_{i}"] = tube_slide(1600 + i, length)
+    sounds["tube_out"] = tube_out()
+    sounds["tube_pop"] = tube_pop()
+    sounds["canister_roll"] = canister_roll()
     sounds["canister_clunk"] = canister_clunk()
     sounds["door_snap"] = door_snap()
+    for i, pitch in enumerate([1.0, 1.06, 0.94], 1):
+        sounds[f"leader_tick_{i}"] = leader_tick(1900 + i, pitch)
+    sounds["leader_catch"] = leader_catch()
+    sounds["back_open"] = back_open()
+    sounds["envelope_drop"] = envelope_drop()
     sounds["print_slide"] = print_slide()
     sounds["keep"] = keep()
     sounds["toss"] = toss()

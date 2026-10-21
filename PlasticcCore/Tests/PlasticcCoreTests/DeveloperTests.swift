@@ -73,38 +73,3 @@ final class DeveloperTests: XCTestCase {
         XCTAssertThrowsError(try Developer().develop(original: url, film: .hp5, shot: shot(), frameIndex: 0, dateStamp: true))
     }
 }
-
-final class RawOriginalTests: XCTestCase {
-    /// A scene with three patches: mid-grey, diffuse white, and a highlight a stop above white.
-    func scene() -> CIImage {
-        let w: CGFloat = 600, h: CGFloat = 900
-        func patch(_ v: CGFloat, _ x: CGFloat) -> CIImage {
-            CIImage(color: CIColor(red: v, green: v, blue: v, alpha: 1, colorSpace: RawOriginal.linearSRGB)!)
-                .cropped(to: CGRect(x: x, y: 0, width: w / 3, height: h))
-        }
-        return patch(0.18, 0).composited(over: patch(1.0, w / 3)).composited(over: patch(2.0, 2 * w / 3))
-    }
-
-    func testRawKeepsHighlightsThatAPhonePhotoClips() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let url = dir.appendingPathComponent("raw.heic")
-        try XCTUnwrap(RawOriginal.encode(scene(), context: CIContext())).write(to: url)
-
-        var film = FilmStock.portra400
-        film = FilmStock(id: film.id, name: film.name, look: film.look, grain: .init(rms: 0, size: 1, chroma: 0, underexposure: 0),
-                         halation: 0, leakTones: film.leakTones, leakChance: 0, vignette: 0, softness: 0)
-        let shot = Roll.Shot(file: "raw.heic", takenAt: Date(), flash: false, seed: 1, source: .raw, sceneEV100: 11.3)
-        let data = try Developer().develop(original: url, film: film, shot: shot, frameIndex: 9, dateStamp: false)
-        let print = try XCTUnwrap(CIImage(data: data))
-        let w = print.extent.width, h = print.extent.height
-        func level(_ third: CGFloat) -> Double {
-            PixelReader.average(print, in: CGRect(x: w * (third + 0.1) / 3, y: h * 0.4, width: w * 0.08, height: h * 0.2)).g
-        }
-        let mid = level(0), white = level(1), over = level(2)
-        XCTAssertEqual(mid, 0.47 * 255, accuracy: 25, "mid-grey prints near mid-grey")
-        XCTAssertGreaterThan(over, white + 4, "a highlight above white still has detail")
-        XCTAssertLessThan(white, 250, "diffuse white is not clipped")
-    }
-}

@@ -26,11 +26,10 @@ public final class Developer: @unchecked Sendable {
             : source.applyingFilter("CILanczosScaleTransform", parameters: [kCIInputScaleKey: Self.scanLongEdge / long, kCIInputAspectRatioKey: 1])
         let origin = scaled.transformed(by: CGAffineTransform(translationX: -scaled.extent.minX, y: -scaled.extent.minY))
         let ev = shot.sceneEV100 ?? Self.sceneEV100(of: original)
-        let exposure = ev.map { FilmEngine.disposableExposure(sceneEV100: $0, flash: shot.flash) } ?? 0
-        let capture = shot.source ?? .phone
-        let white = Self.scanWhite(of: origin, film: film, source: capture, context: context)
+        let exposure = ev.map { FilmEngine.disposableExposure(sceneEV100: $0, flash: shot.flash) } ?? FilmEngine.printOffset
+        let white = Self.scanWhite(of: origin, film: film, context: context)
         let print = engine.develop(origin, film: film, seed: shot.seed, frameIndex: frameIndex, flash: shot.flash,
-                                   date: dateStamp ? shot.takenAt : nil, exposure: exposure, source: capture, white: white)
+                                   date: dateStamp ? shot.takenAt : nil, exposure: exposure, white: white)
         guard let data = context.jpegRepresentation(of: print, colorSpace: FilmEngine.sRGB, options: [
             CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.95,
         ]) else { throw DevelopError.unencodable }
@@ -51,10 +50,10 @@ public final class Developer: @unchecked Sendable {
     /// The white point a minilab scanner would set for a frame, as decoded linear light: from its brightest
     /// 0.5%, so a frame with no bright highlights prints its whites as white, and one with lamps or sky keeps
     /// them in the shoulder. Kept between 0.3 (about a stop and a half of stretch, as a minilab gives a thin
-    /// negative) and the source's full range, in steps of 0.05 so a film's colour
+    /// negative) and the photo's full range, in steps of 0.05 so a film's colour
     /// cube can be reused.
-    public static func scanWhite(of image: CIImage, film: FilmStock, source: CaptureSource, context: CIContext) -> Double {
-        let full = film.look.fullWhite(for: source)
+    public static func scanWhite(of image: CIImage, film: FilmStock, context: CIContext) -> Double {
+        let full = film.look.fullWhite
         let s = 128 / max(image.extent.width, image.extent.height)
         let small = image.transformed(by: CGAffineTransform(scaleX: s, y: s))
         let e = small.extent.integral
@@ -64,7 +63,7 @@ public final class Developer: @unchecked Sendable {
         // The brightest channel, so a saturated highlight counts too.
         let peaks = stride(from: 0, to: px.count, by: 4).map { Double(max(px[$0], px[$0 + 1], px[$0 + 2])) }.sorted()
         guard !peaks.isEmpty else { return full }
-        let white = film.look.decoded(peaks[min(peaks.count - 1, Int(Double(peaks.count) * 0.995))], source: source)
+        let white = film.look.decoded(peaks[min(peaks.count - 1, Int(Double(peaks.count) * 0.995))])
         return (min(full, max(0.3, white)) * 20).rounded() / 20
     }
 

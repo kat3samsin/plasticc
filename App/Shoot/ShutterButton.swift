@@ -13,7 +13,7 @@ struct ShutterButton: View {
                 Feel.shared.shutter()
                 Task { if await !action() { Feel.shared.dud() } }
             } else {
-                Feel.shared.dud()
+                Feel.shared.locked()
             }
         } label: {
             EmptyView()
@@ -29,6 +29,8 @@ struct ShutterButton: View {
 
         func makeBody(configuration: Configuration) -> some View {
             let down = configuration.isPressed
+            // Locked, the cap only travels a little before it meets the stop.
+            let travel = isArmed ? 1.0 : 0.3
             ZStack {
                 // The well in the body.
                 Circle()
@@ -46,11 +48,13 @@ struct ShutterButton: View {
                             .tracking(2)
                             .foregroundStyle(.white.opacity(isArmed ? 0.7 : 0.3))
                     )
-                    .shadow(color: .black.opacity(down ? 0.2 : 0.6), radius: down ? 1 : 5, y: down ? 0 : 4)
-                    .scaleEffect(down ? 0.93 : 1)
-                    .offset(y: down ? 2 : 0)
+                    .shadow(color: .black.opacity(down ? 0.6 - 0.4 * travel : 0.6), radius: down ? 5 - 4 * travel : 5,
+                            y: down ? 4 - 4 * travel : 4)
+                    .scaleEffect(down ? 1 - 0.07 * travel : 1)
+                    .offset(y: down ? 2 * travel : 0)
             }
-            .animation(.spring(response: 0.12, dampingFraction: 0.55), value: down)
+            .animation(isArmed ? .spring(response: 0.12, dampingFraction: 0.55) : .spring(response: 0.06, dampingFraction: 0.9),
+                       value: down)
         }
     }
 }

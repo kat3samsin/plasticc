@@ -1,14 +1,24 @@
 import PlasticcCore
 import SwiftUI
 
-/// The shop counter: swipe through the cameras, pick how many exposures, take one home.
+/// The film counter: swipe along the shelf of film boxes, pick how many exposures, buy a roll for your camera.
 struct PickFilmView: View {
     let model: RollModel
     @State private var filmID: String? = FilmStock.superia400.id
+    /// The last box settled in the middle; the scroll position reads nil while a swipe is settling.
+    @State private var shownID = FilmStock.superia400.id
     @State private var length = RollLength.standard
-    @State private var showSettings = false
 
-    private var film: FilmStock { filmID.flatMap(FilmStock.with) ?? .superia400 }
+    /// The three-shot test roll is for debug builds only.
+    #if DEBUG
+    private static let lengths = RollLength.allCases
+    #else
+    private static let lengths = RollLength.allCases.filter { $0 != .test }
+    #endif
+    @State private var showSettings = false
+    @State private var bought = false
+
+    private var film: FilmStock { FilmStock.with(id: filmID ?? shownID) ?? .superia400 }
 
     var body: some View {
         ZStack {
@@ -19,29 +29,43 @@ struct PickFilmView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 10)
 
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 0) {
-                        ForEach(FilmStock.all) { stock in
-                            CameraBox(film: stock, exposures: length.exposures)
-                                .frame(width: 240, height: 330)
-                                .scrollTransition(.interactive, axis: .horizontal) { view, phase in
-                                    view
-                                        .scaleEffect(phase.isIdentity ? 1 : 0.82)
-                                        .rotationEffect(.degrees(phase.value * 8))
-                                        .opacity(phase.isIdentity ? 1 : 0.6)
-                                }
-                                .containerRelativeFrame(.horizontal)
-                                .id(stock.id)
+                ZStack(alignment: .bottom) {
+                    Shelf()
+                        .frame(height: 46)
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing: 0) {
+                            ForEach(FilmStock.all) { stock in
+                                FilmBox(film: stock, exposures: length.exposures)
+                                    // Bought: lifted off the shelf and into the bag.
+                                    .scaleEffect(bought && stock.id == film.id ? 0.6 : 1, anchor: .bottom)
+                                    .offset(y: bought && stock.id == film.id ? -40 : 0)
+                                    .rotationEffect(.degrees(bought && stock.id == film.id ? -8 : 0))
+                                    .opacity(bought && stock.id == film.id ? 0 : 1)
+                                    .scrollTransition(.interactive, axis: .horizontal) { view, phase in
+                                        view
+                                            .scaleEffect(phase.isIdentity ? 1 : 0.8, anchor: .bottom)
+                                            .rotationEffect(.degrees(phase.value * 5), anchor: .bottom)
+                                            .opacity(phase.isIdentity ? 1 : 0.55)
+                                    }
+                                    .padding(.bottom, 26)
+                                    .frame(maxHeight: .infinity, alignment: .bottom)
+                                    .containerRelativeFrame(.horizontal)
+                                    .id(stock.id)
+                            }
                         }
+                        .scrollTargetLayout()
                     }
-                    .scrollTargetLayout()
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollPosition(id: $filmID)
+                    .scrollIndicators(.hidden)
+                    .scrollDisabled(bought)
                 }
-                .scrollTargetBehavior(.viewAligned)
-                .scrollPosition(id: $filmID)
-                .scrollIndicators(.hidden)
-                .frame(height: 380)
-                .padding(.top, 18)
-                .onChange(of: filmID) { Feel.shared.windTick(tension: 0.3) }
+                .frame(height: 390)
+                .padding(.top, 8)
+                .onChange(of: filmID) { _, id in
+                    if let id { shownID = id }
+                    Feel.shared.boxSlide()
+                }
 
                 VStack(spacing: 4) {
                     Text(film.name)
@@ -50,13 +74,14 @@ struct PickFilmView: View {
                     Text(film.brand.blurb)
                         .font(.typed(15))
                         .foregroundStyle(Paper.fadedInk)
-                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .padding(.horizontal, 30)
                 .animation(.easeInOut(duration: 0.2), value: filmID)
 
                 HStack(spacing: 18) {
-                    ForEach(RollLength.allCases, id: \.self) { option in
+                    ForEach(Self.lengths, id: \.self) { option in
                         ExposureSticker(exposures: option.exposures, selected: option == length) {
                             guard option != length else { return }
                             Feel.shared.click()
@@ -65,16 +90,14 @@ struct PickFilmView: View {
                     }
                 }
                 .padding(.top, 26)
+                .disabled(bought)
 
                 Spacer(minLength: 12)
 
-                Button {
-                    Feel.shared.canisterClunk()
-                    model.start(film: film, length: length)
-                } label: {
+                Button(action: buy) {
                     HStack(spacing: 10) {
                         Image(systemName: "bag.fill")
-                        Text("Take this camera")
+                        Text("Buy this roll")
                     }
                     .font(.print(19, weight: .heavy))
                     .frame(maxWidth: .infinity)
@@ -85,9 +108,24 @@ struct PickFilmView: View {
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 18)
+                .disabled(bought)
             }
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+    }
+
+    /// Off the shelf and into your bag, then home to open it.
+    private func buy() {
+        guard !bought else { return }
+        let film = film, length = length
+        Feel.shared.buy()
+        withAnimation(.easeIn(duration: 0.5)) { bought = true }
+        Task {
+            try? await Task.sleep(for: .seconds(0.55))
+            model.start(film: film, length: length)
+            // Refused by the store: put the box back on the shelf.
+            if model.roll == nil { withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { bought = false } }
+        }
     }
 
     private var header: some View {
@@ -96,7 +134,7 @@ struct PickFilmView: View {
                 Text("Plasticc")
                     .font(.print(40))
                     .foregroundStyle(Paper.ink)
-                Text("One camera. One roll. No do-overs.")
+                Text("One camera. Any film. No do-overs.")
                     .font(.typed(15))
                     .foregroundStyle(Paper.fadedInk)
             }
@@ -114,103 +152,6 @@ struct PickFilmView: View {
             }
             .accessibilityLabel("Settings")
         }
-    }
-}
-
-/// A single-use camera in its retail box: the film's colours, big speed number, flash badge.
-private struct CameraBox: View {
-    let film: FilmStock
-    let exposures: Int
-
-    var body: some View {
-        let brand = film.brand
-        HStack(spacing: 0) {
-            // Front face.
-            brand.sleeve
-                .overlay(alignment: .topLeading) {
-                    ZStack(alignment: .topLeading) {
-                        ForEach(0..<3, id: \.self) { i in
-                            Rectangle()
-                                .fill(brand.band.opacity(1 - Double(i) * 0.25))
-                                .frame(width: 420, height: 14 - CGFloat(i) * 3)
-                                .rotationEffect(.degrees(-24))
-                                .offset(x: -60, y: 220 + CGFloat(i) * 20)
-                        }
-                    }
-                }
-                .overlay {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(brand.maker)
-                            .font(.print(13))
-                            .tracking(3)
-                        Text(brand.line)
-                            .font(.print(24))
-                            .italic()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Text(brand.speed)
-                            .font(.print(78))
-                            .italic()
-                            .padding(.top, -6)
-                        Spacer()
-                        HStack(alignment: .bottom) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("SINGLE-USE")
-                                Text("CAMERA")
-                            }
-                            .font(.print(11))
-                            Spacer()
-                            VStack(spacing: 0) {
-                                Text("\(exposures)")
-                                    .font(.print(26))
-                                    .contentTransition(.numericText())
-                                Text("EXP").font(.print(9))
-                            }
-                            .frame(width: 58, height: 58)
-                            .background(Circle().fill(brand.band))
-                            .foregroundStyle(brand.bandInk)
-                        }
-                    }
-                    .foregroundStyle(brand.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(18)
-                }
-                .overlay(alignment: .topTrailing) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                        Text("FLASH")
-                    }
-                    .font(.print(10))
-                    .foregroundStyle(Paper.ink)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(red: 1, green: 0.85, blue: 0.2), in: Capsule())
-                    .rotationEffect(.degrees(12))
-                    .padding(.top, 158)
-                    .padding(.trailing, 10)
-                }
-            .overlay(Grain(opacity: 0.16))
-            .overlay(Sheen(strength: 0.2))
-            .clipped()
-
-            // Side face, in shadow.
-            brand.sleeve
-                .overlay(Color.black.opacity(0.32))
-                .overlay(
-                    Text("\(brand.maker) \(brand.speed)")
-                        .font(.print(10))
-                        .tracking(2)
-                        .foregroundStyle(brand.ink.opacity(0.7))
-                        .fixedSize()
-                        .rotationEffect(.degrees(90))
-                )
-                .frame(width: 26)
-                .clipped()
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .shadow(color: .black.opacity(0.35), radius: 12, x: 6, y: 12)
-        .accessibilityElement()
-        .accessibilityLabel("\(film.name) single-use camera, \(exposures) exposures")
     }
 }
 
@@ -240,5 +181,25 @@ private struct ExposureSticker: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(exposures) exposures")
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The wooden shelf the boxes stand on, with its lip catching the light.
+private struct Shelf: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(LinearGradient(colors: [Color(red: 0.55, green: 0.38, blue: 0.24), Color(red: 0.46, green: 0.31, blue: 0.19)],
+                                     startPoint: .top, endPoint: .bottom))
+                .frame(height: 30)
+                .overlay(Grain(opacity: 0.08))
+                .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.18)).frame(height: 1) }
+            Rectangle()
+                .fill(Color(red: 0.33, green: 0.21, blue: 0.13))
+                .frame(height: 16)
+                .overlay(Grain(opacity: 0.08))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 6)
+        .accessibilityHidden(true)
     }
 }

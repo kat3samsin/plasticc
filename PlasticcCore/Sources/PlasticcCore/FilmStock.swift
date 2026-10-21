@@ -34,9 +34,9 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             var l = LookSpec()
             l.channelGain = SIMD3(0.98, 1.01, 1.0)
             // Datasheet layer gammas are about 0.59 / 0.59 / 0.77: a contrastier blue layer.
-            l.contrast = SIMD3(1.16, 1.16, 1.25)
+            l.contrast = SIMD3(1.26, 1.26, 1.36)
             l.curveOffset = SIMD3(0, 0.04, -0.03)
-            l.saturation = 1.06
+            l.saturation = 1.12
             l.saturationRolloff = 0.22
             l.hueSectors = [
                 // Fuji greens: leaning teal and a bit richer.
@@ -53,9 +53,9 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             return l
         }(),
         // Weak antihalation layer: more glow than Portra.
-        grain: Grain(rms: 2.8, size: 0.85, chroma: 0.12, underexposure: 0.15), halation: 0.15,
-        leakTones: [SIMD3(1.0, 0.45, 0.2), SIMD3(1.0, 0.3, 0.5)], leakChance: 0.12,
-        vignette: 0.25, softness: 0.15
+        grain: Grain(rms: 7.5, size: 0.55, chroma: 0.12, underexposure: 0.15), halation: 0.15,
+        leakTones: [SIMD3(1.0, 0.45, 0.2), SIMD3(1.0, 0.3, 0.5)], leakChance: 0.25,
+        vignette: 0.2, softness: 1.0
     )
 
     public static let portra400 = FilmStock(
@@ -63,13 +63,14 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
         look: {
             var l = LookSpec()
             l.channelGain = SIMD3(1.05, 1.0, 0.92)
-            // Low, nearly balanced contrast, like Portra 800's layer gammas (about 0.52 / 0.49 / 0.53).
-            l.contrast = SIMD3(1.1, 1.08, 1.1)
+            // Soft, nearly balanced contrast, like Portra's layer gammas (about 0.52 / 0.49 / 0.53): the
+            // gentle tonality that makes Portra look like film rather than a punchy phone photo.
+            l.contrast = SIMD3(1.02, 1.0, 1.02)
             // Mid-grey a touch under, so sunny frames don't wash out.
             l.curveOffset = SIMD3(-0.05, -0.12, -0.18)
-            // Natural but with life in it: scans of real rolls average a little more colour than the phone.
-            l.saturation = 1.06
-            l.saturationRolloff = 0.2
+            // Pastel rather than vivid, with colour fading out of the shadows and highlights.
+            l.saturation = 1.0
+            l.saturationRolloff = 0.3
             l.hueSectors = [
                 // Reds and skin toward orange, gently.
                 .init(center: 45, width: 60, hueShift: 2, chroma: -0.08),
@@ -77,17 +78,19 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
                 .init(center: 145, width: 80, chroma: -0.03),
                 .init(center: 262, width: 70, chroma: 0.05),
             ]
-            l.highlightRolloff = 0.05
-            l.fade = 0
-            l.shadowTint = SIMD3(0.005, 0.005, 0.015)
-            l.highlightTint = SIMD3(0.035, 0.02, -0.005)
+            // Creamy highlights, milky lifted blacks with a cool teal cast, and peachy highlights, as on a
+            // Frontier scan of Portra.
+            l.highlightRolloff = 0.15
+            l.fade = 0.045
+            l.shadowTint = SIMD3(-0.01, 0.012, 0.018)
+            l.highlightTint = SIMD3(0.04, 0.02, -0.01)
             return l
         }(),
         // Strong antihalation layer: a softer glow than Superia.
         // Print Grain Index 37 against Portra 800's 48: well below the colour films' usual grain.
-        grain: Grain(rms: 2.3, size: 0.8, chroma: 0.08, underexposure: 0.10), halation: 0.04,
-        leakTones: [SIMD3(1.0, 0.55, 0.25), SIMD3(1.0, 0.75, 0.4)], leakChance: 0.12,
-        vignette: 0.2, softness: 0.15
+        grain: Grain(rms: 6.3, size: 0.5, chroma: 0.08, underexposure: 0.10), halation: 0.04,
+        leakTones: [SIMD3(1.0, 0.55, 0.25), SIMD3(1.0, 0.75, 0.4)], leakChance: 0.25,
+        vignette: 0.18, softness: 1.0
     )
 
     public static let hp5 = FilmStock(
@@ -96,16 +99,16 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             var l = LookSpec()
             // Panchromatic, a little dark in the reds and light in the blues.
             l.monoWeights = SIMD3(0.21, 0.60, 0.19)
-            l.contrast = SIMD3(repeating: 1.22)
+            l.contrast = SIMD3(repeating: 1.32)
             // Holds highlights better than shadows: a long shoulder.
             l.shoulderRecovery = 0.5
             l.highlightRolloff = 0.04
             l.fade = 0
             return l
         }(),
-        grain: Grain(rms: 3.6, size: 0.95, chroma: 0, underexposure: 0.12), halation: 0,
-        leakTones: [SIMD3(0.8, 0.8, 0.8)], leakChance: 0.12,
-        vignette: 0.3, softness: 0.15
+        grain: Grain(rms: 9.8, size: 0.6, chroma: 0, underexposure: 0.12), halation: 0,
+        leakTones: [SIMD3(0.8, 0.8, 0.8)], leakChance: 0.25,
+        vignette: 0.22, softness: 1.0
     )
 
     public static let ektar100 = FilmStock(
@@ -116,15 +119,15 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             // The world's finest-grain colour negative, and its punchiest: steep, slightly cool-shadowed curves.
             l.contrast = SIMD3(1.3, 1.28, 1.34)
             l.curveOffset = SIMD3(0, 0, -0.04)
-            l.saturation = 1.3
+            l.saturation = 1.2
             l.saturationRolloff = 0.18
             l.hueSectors = [
                 // Deep, glowing reds and oranges.
-                .init(center: 35, width: 60, chroma: 0.1),
+                .init(center: 35, width: 60, chroma: 0.05),
                 // Skin leans red, as Ektar is known for.
                 .init(center: 58, width: 40, hueShift: -4, chroma: -0.06),
                 // Rich blues and skies.
-                .init(center: 260, width: 80, hueShift: -3, chroma: 0.12),
+                .init(center: 260, width: 80, hueShift: -3, chroma: 0.08),
                 // Vivid greens.
                 .init(center: 140, width: 80, chroma: 0.06),
             ]
@@ -135,9 +138,9 @@ public struct FilmStock: Identifiable, Equatable, Sendable {
             return l
         }(),
         // Print Grain Index 25, the visibility threshold: grain only shows if you look hard.
-        grain: Grain(rms: 1.5, size: 0.7, chroma: 0.08, underexposure: 0.15), halation: 0.05,
-        leakTones: [SIMD3(1.0, 0.4, 0.15), SIMD3(1.0, 0.25, 0.3)], leakChance: 0.12,
-        vignette: 0.22, softness: 0.12
+        grain: Grain(rms: 4.2, size: 0.45, chroma: 0.08, underexposure: 0.15), halation: 0.05,
+        leakTones: [SIMD3(1.0, 0.4, 0.15), SIMD3(1.0, 0.25, 0.3)], leakChance: 0.25,
+        vignette: 0.18, softness: 0.9
     )
 
     public static let all = [superia400, portra400, ektar100, hp5]

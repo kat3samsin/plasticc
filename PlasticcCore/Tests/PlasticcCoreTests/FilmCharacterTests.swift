@@ -33,8 +33,9 @@ final class FilmCharacterTests: XCTestCase {
     }
 
     func testSuperiaIsPunchierThanPortraButNotGaudy() {
-        XCTAssertEqual(meanChroma(.superia400), 1.2, accuracy: 0.08)
-        XCTAssertEqual(meanChroma(.portra400), 1.12, accuracy: 0.08)
+        // Superia pushed toward the rich colour of Lomography community scans; Portra kept soft and pastel.
+        XCTAssertEqual(meanChroma(.superia400), 1.34, accuracy: 0.08)
+        XCTAssertEqual(meanChroma(.portra400), 0.96, accuracy: 0.08)
         XCTAssertGreaterThan(meanChroma(.superia400), meanChroma(.portra400) + 0.04)
     }
 

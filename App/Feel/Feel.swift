@@ -62,7 +62,23 @@ final class Feel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [rigid] in rigid.impactOccurred(intensity: 0.45) }
     }
 
-    /// The shutter pressed while the film isn't wound: a dead, soft press.
+    /// The shutter pressed while the film isn't wound: the button meets the lock after a short travel,
+    /// a dull, blunt stop with no click.
+    func locked() {
+        prepareIfNeeded()
+        playPattern([
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.75),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.05),
+            ], relativeTime: 0),
+            CHHapticEvent(eventType: .hapticContinuous, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.3),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0),
+            ], relativeTime: 0.005, duration: 0.05),
+        ]) { [soft] in soft.impactOccurred(intensity: 0.8) }
+    }
+
+    /// A shot that didn't happen: a dead, soft press.
     func dud() {
         prepareIfNeeded()
         soft.impactOccurred(intensity: 0.35)
@@ -121,29 +137,85 @@ final class Feel {
         ]) { [soft] in soft.impactOccurred() }
     }
 
-    // MARK: - Unboxing
+    // MARK: - The film counter
 
-    func crinkle(strength: Double) {
+    /// A box sliding along the shelf to the front.
+    func boxSlide() {
         prepareIfNeeded()
-        light.impactOccurred(intensity: CGFloat(0.3 + 0.5 * strength))
-        play("crinkle", variants: 6, volume: Float(0.55 + 0.45 * strength))
+        selection.selectionChanged()
+        play("box_slide", variants: 2, volume: 0.7)
     }
 
-    /// The wrap comes away.
-    func tear() {
+    /// A roll off the shelf and into the paper bag.
+    func buy() {
         prepareIfNeeded()
-        play("tear")
+        soft.impactOccurred(intensity: 0.7)
+        play("bag")
+    }
+
+    // MARK: - Opening the box
+
+    /// The end flap's tuck tab dragging against the card as it lifts.
+    func flapCreak(progress: Double) {
+        prepareIfNeeded()
+        light.impactOccurred(intensity: CGFloat(0.25 + 0.4 * progress))
+        play("flap_creak", variants: 3, volume: Float(0.5 + 0.4 * progress))
+    }
+
+    /// The tuck tab pops free and the flap swings open.
+    func flapOpen() {
+        prepareIfNeeded()
+        play("flap_open")
         playPattern([
-            CHHapticEvent(eventType: .hapticContinuous, parameters: [
-                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.8),
-                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.9),
-            ], relativeTime: 0, duration: 0.35),
-        ], curves: [
-            CHHapticParameterCurve(parameterID: .hapticIntensityControl, controlPoints: [
-                .init(relativeTime: 0, value: 0.4), .init(relativeTime: 0.12, value: 1), .init(relativeTime: 0.35, value: 0),
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.7),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
             ], relativeTime: 0),
-        ]) { [heavy] in heavy.impactOccurred() }
+            CHHapticEvent(eventType: .hapticContinuous, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.25),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.15),
+            ], relativeTime: 0.01, duration: 0.12),
+        ]) { [rigid] in rigid.impactOccurred(intensity: 0.7) }
     }
+
+    /// The plastic tube rubbing up past the box's cardboard.
+    func tubeSlide(progress: Double) {
+        prepareIfNeeded()
+        soft.impactOccurred(intensity: CGFloat(0.3 + 0.3 * progress))
+        play("tube_slide", variants: 3, volume: Float(0.45 + 0.4 * progress))
+    }
+
+    /// The tube clears the box.
+    func tubeOut() {
+        prepareIfNeeded()
+        soft.impactOccurred(intensity: 0.9)
+        play("tube_out")
+    }
+
+    /// The tube's lid snapping off: a tight suction pop.
+    func tubePop() {
+        prepareIfNeeded()
+        play("tube_pop")
+        playPattern([
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 1),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.85),
+            ], relativeTime: 0),
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.35),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.3),
+            ], relativeTime: 0.05),
+        ]) { [rigid] in rigid.impactOccurred(intensity: 1) }
+    }
+
+    /// The canister sliding out of the tube into your hand.
+    func canisterOut() {
+        prepareIfNeeded()
+        play("canister_roll")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [heavy] in heavy.impactOccurred(intensity: 0.6) }
+    }
+
+    // MARK: - Loading and unloading
 
     func canisterClunk() {
         prepareIfNeeded()
@@ -155,6 +227,52 @@ final class Feel {
         prepareIfNeeded()
         rigid.impactOccurred(intensity: 1)
         play("door_snap")
+    }
+
+    /// One sprocket hole of leader dragged across the film gate. `tension` rises as it nears the spool.
+    func leaderTick(tension: Double) {
+        prepareIfNeeded()
+        rigid.impactOccurred(intensity: CGFloat(0.2 + 0.35 * tension))
+        play("leader_tick", variants: 3, volume: Float(0.4 + 0.4 * tension))
+    }
+
+    /// The leader's tongue caught by the take-up spool's teeth.
+    func leaderCatch() {
+        prepareIfNeeded()
+        play("leader_catch")
+        playPattern([
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.8),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.7),
+            ], relativeTime: 0),
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.5),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.8),
+            ], relativeTime: 0.045),
+        ]) { [rigid] in rigid.impactOccurred(intensity: 0.8) }
+    }
+
+    /// The back's latch giving way and its spring flipping the door open.
+    func backOpen() {
+        prepareIfNeeded()
+        play("back_open")
+        playPattern([
+            CHHapticEvent(eventType: .hapticTransient, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.9),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.75),
+            ], relativeTime: 0),
+            CHHapticEvent(eventType: .hapticContinuous, parameters: [
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.3),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.4),
+            ], relativeTime: 0.02, duration: 0.09),
+        ]) { [rigid] in rigid.impactOccurred(intensity: 0.9) }
+    }
+
+    /// The canister dropped into the lab envelope.
+    func envelopeDrop() {
+        prepareIfNeeded()
+        play("envelope_drop")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [soft] in soft.impactOccurred(intensity: 1) }
     }
 
     // MARK: - Lab and prints

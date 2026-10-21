@@ -1,202 +1,211 @@
 import PlasticcCore
 import SwiftUI
 
-/// The back is open and the chamber's empty. Drag the canister in; it clunks into place and the door snaps shut.
+/// Loading your camera: drop the canister into the chamber, pull the leader across the gate to the take-up spool,
+/// then the back snaps shut with the canister showing in the film window.
 struct LoadFilmView: View {
     let model: RollModel
 
-    @State private var drag: CGSize = .zero
-    @State private var seated = false
-    @State private var shut = false
+    private enum Step { case canister, thread, shut }
+
+    @State private var step = Step.canister
+    /// Resets by itself, springing the canister home, when the drag ends or the system cancels it.
+    @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.7)))
+    private var drag: CGSize = .zero
     @State private var near = false
-    @State private var bob = false
+    /// Leader pulled out of the canister, in points.
+    @State private var leader: CGFloat = 34
+    @State private var leaderStart: CGFloat = 34
+    @State private var lastTick: CGFloat = 34
+    @State private var caught = false
+    @State private var spoolTurn: Double = 0
+    @State private var doorShut = false
+    @State private var hint = false
 
     private var film: FilmStock { model.film ?? .superia400 }
-    private var brand: FilmBrand { film.brand }
-    /// Where the canister rests, relative to the chamber's centre.
-    private let restOffset = CGSize(width: 0, height: 330)
+    private var exposures: Int { model.roll?.length.exposures ?? 24 }
+    /// Where the canister waits, in bay coordinates: below the bay, centred.
+    private static let rest = CGPoint(x: (FilmBay.size.width - 112) / 2, y: FilmBay.size.height + 90)
+    /// The leader's length when its tongue reaches the spool.
+    private static let fullLeader = FilmBay.spoolX - FilmBay.lipX - 6
+    /// The film's sprocket pitch, in points: one tick per hole dragged across the gate.
+    private static let pitch: CGFloat = 9
 
     var body: some View {
         ZStack {
-            CameraBack(brand: brand)
+            CameraBack()
 
             VStack(spacing: 0) {
                 VStack(spacing: 6) {
-                    Text(shut ? "LOADED" : "LOAD THE FILM")
+                    Text(title)
                         .font(.print(26))
                         .italic()
-                        .swaps(on: shut)
-                    Text(shut ? "Wind on to frame 1." : "Drag the canister into the camera.")
+                        .swaps(on: step)
+                    Text(instruction)
                         .font(.print(15, weight: .bold))
-                        .opacity(0.85)
-                        .swaps(on: shut)
+                        .opacity(0.8)
+                        .swaps(on: step)
                 }
-                .foregroundStyle(brand.ink)
-                .padding(.top, 36)
+                .foregroundStyle(Plastic.trim)
+                .multilineTextAlignment(.center)
+                .padding(.top, 40)
 
-                ZStack {
-                    Chamber(near: near, seated: seated)
-                    Door(brand: brand)
-                        .offset(x: shut ? 0 : 230)
-                        .opacity(shut ? 1 : 0)
+                ZStack(alignment: .topLeading) {
+                    FilmBay(chamberLit: near, spoolTurn: spoolTurn, spoolLit: step == .thread && leader > Self.fullLeader * 0.7)
 
-                    Canister(film: film, brand: brand)
-                        .scaleEffect(seated ? 0.92 : (near ? 1.04 : 1))
-                        .offset(seated ? .zero : CGSize(width: restOffset.width + drag.width,
-                                                       height: restOffset.height + drag.height + (bob ? -6 : 0)))
-                        .opacity(shut ? 0 : 1)
-                        .gesture(seated ? nil : canisterGesture)
+                    FilmCanister(film: film, exposures: exposures, leader: leader)
+                        .scaleEffect(near ? 1.05 : 1, anchor: .topLeading)
+                        .offset(x: canisterOrigin.x, y: canisterOrigin.y)
+                        .gesture(step == .canister ? canisterGesture : nil)
                         .accessibilityElement()
                         .accessibilityLabel("Film canister, \(film.name)")
-                        .accessibilityAction(named: "Load") { seat() }
-                }
-                .frame(height: 300)
-                .padding(.top, 50)
+                        .accessibilityActions {
+                            if step != .shut {
+                                Button(step == .canister ? "Load" : "Thread the leader") { autoLoad() }
+                            }
+                        }
 
-                Spacer(minLength: 0)
+                    // Pull handle on the leader's tongue while threading.
+                    if step == .thread {
+                        hintArrow("PULL", systemImage: "chevron.right")
+                            .offset(x: FilmBay.lipX + leader + 10, y: FilmBay.seat.y + 46)
+                    } else if step == .canister, !near, drag == .zero {
+                        hintArrow("DROP IN", systemImage: "chevron.up")
+                            .offset(x: Self.rest.x + 14, y: Self.rest.y - 40)
+                    }
+
+                    BackDoor(film: film)
+                        .frame(width: FilmBay.size.width + 12, height: FilmBay.size.height + 12)
+                        .offset(x: -6, y: -6)
+                        .rotation3DEffect(.degrees(doorShut ? 0 : -96), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.45)
+                        .opacity(doorShut ? 1 : 0)
+                        .allowsHitTesting(false)
+                }
+                .frame(width: FilmBay.size.width, height: FilmBay.size.height + 260, alignment: .topLeading)
+                .contentShape(Rectangle())
+                .gesture(step == .thread ? threadGesture : nil)
+                .frame(maxHeight: .infinity)
             }
         }
+        // A drag the system cancelled (a call, Control Center) springs home without an end: unlight the chamber.
+        .onChange(of: drag) { _, drag in if drag == .zero, near { near = false } }
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { bob = true }
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { hint = true }
         }
     }
+
+    private var title: String {
+        switch step {
+        case .canister: "LOAD THE FILM"
+        case .thread: "THREAD THE LEADER"
+        case .shut: "LOADED"
+        }
+    }
+
+    private var instruction: String {
+        switch step {
+        case .canister: "Drop the canister into the chamber."
+        case .thread: "Pull the film across to the spool."
+        case .shut: "Back shut. Wind on to frame 1."
+        }
+    }
+
+    private var canisterOrigin: CGPoint {
+        step == .canister
+            ? CGPoint(x: Self.rest.x + drag.width, y: Self.rest.y + drag.height)
+            : FilmBay.seat
+    }
+
+    private func hintArrow(_ label: String, systemImage: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage).font(.system(size: 14, weight: .black))
+            Text(label).font(.print(11)).tracking(2)
+        }
+        .foregroundStyle(Plastic.accent)
+        .offset(x: systemImage == "chevron.right" ? (hint ? 6 : 0) : 0, y: systemImage == "chevron.up" ? (hint ? -6 : 0) : 0)
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    // MARK: - Gestures
 
     private var canisterGesture: some Gesture {
         DragGesture()
+            .updating($drag) { value, drag, _ in drag = value.translation }
             .onChanged { value in
-                drag = value.translation
-                let distance = hypot(restOffset.width + drag.width, restOffset.height + drag.height)
-                let isNear = distance < 90
+                let isNear = Self.overChamber(value.translation)
                 if isNear != near {
-                    near = isNear
+                    withAnimation(.easeOut(duration: 0.15)) { near = isNear }
                     if isNear { Feel.shared.threshold() }
                 }
             }
-            .onEnded { _ in
-                if near {
-                    seat()
-                } else {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { drag = .zero }
-                }
+            .onEnded { value in
+                if Self.overChamber(value.translation) { seat() }
             }
     }
 
+    /// Whether a canister dragged this far from its rest is over the chamber.
+    private static func overChamber(_ translation: CGSize) -> Bool {
+        hypot(rest.x + translation.width - FilmBay.seat.x, rest.y + translation.height - FilmBay.seat.y) < 90
+    }
+
+    private var threadGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                guard !caught else { return }
+                leader = min(Self.fullLeader, max(34, leaderStart + value.translation.width))
+                // A tick for every sprocket hole that crosses the gate, firmer as the film nears the spool.
+                while leader - lastTick >= Self.pitch {
+                    lastTick += Self.pitch
+                    Feel.shared.leaderTick(tension: Double((leader - 34) / (Self.fullLeader - 34)))
+                }
+                while lastTick - leader >= Self.pitch { lastTick -= Self.pitch }
+                if leader >= Self.fullLeader * 0.97 { catchLeader() }
+            }
+            .onEnded { _ in
+                leaderStart = leader
+            }
+    }
+
+    // MARK: - Steps
+
     private func seat() {
-        guard !seated else { return }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
-            seated = true
+        guard step == .canister else { return }
+        Feel.shared.canisterClunk()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) {
+            step = .thread
             near = false
         }
-        Feel.shared.canisterClunk()
+    }
+
+    private func catchLeader() {
+        guard step == .thread, !caught else { return }
+        caught = true
+        Feel.shared.leaderCatch()
+        withAnimation(.easeOut(duration: 0.3)) {
+            leader = Self.fullLeader
+            spoolTurn += 21
+        }
         Task {
-            try? await Task.sleep(for: .seconds(0.55))
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { shut = true }
-            try? await Task.sleep(for: .seconds(0.22))
+            try? await Task.sleep(for: .seconds(0.45))
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                doorShut = true
+                step = .shut
+            }
+            try? await Task.sleep(for: .seconds(0.3))
             Feel.shared.doorSnap()
-            try? await Task.sleep(for: .seconds(0.9))
+            try? await Task.sleep(for: .seconds(1.2))
             model.load()
         }
     }
-}
 
-/// The open film chamber: a dark moulded well with a spool post and guide rails.
-private struct Chamber: View {
-    let near: Bool
-    let seated: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(white: 0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .strokeBorder(LinearGradient(colors: [.black, Color(white: 0.25)], startPoint: .top, endPoint: .bottom), lineWidth: 6)
-                )
-                .shadow(color: near ? Plastic.lamp.opacity(0.8) : .clear, radius: 14)
-            VStack(spacing: 10) {
-                ForEach(0..<6, id: \.self) { _ in Capsule().fill(Color(white: 0.12)).frame(width: 110, height: 3) }
-            }
-            Capsule()
-                .fill(LinearGradient(colors: [Color(white: 0.35), Color(white: 0.15)], startPoint: .leading, endPoint: .trailing))
-                .frame(width: 14, height: 150)
-                .opacity(seated ? 0 : 1)
-            Text("FILM")
-                .font(.print(10))
-                .tracking(3)
-                .foregroundStyle(.white.opacity(0.25))
-                .offset(y: 112)
+    /// VoiceOver: drop it in and thread it in one go.
+    private func autoLoad() {
+        seat()
+        Task {
+            try? await Task.sleep(for: .seconds(0.4))
+            withAnimation(.easeInOut(duration: 0.5)) { leader = Self.fullLeader }
+            catchLeader()
         }
-        .frame(width: 160, height: 250)
-    }
-}
-
-/// A 35 mm canister: metal caps, a printed label in the film's colours, the leader sticking out.
-private struct Canister: View {
-    let film: FilmStock
-    let brand: FilmBrand
-
-    var body: some View {
-        HStack(spacing: -4) {
-            VStack(spacing: 0) {
-                cap
-                ZStack {
-                    LinearGradient(stops: [
-                        .init(color: brand.sleeve.opacity(0.75), location: 0),
-                        .init(color: brand.sleeve, location: 0.35),
-                        .init(color: brand.sleeve.opacity(0.65), location: 1),
-                    ], startPoint: .leading, endPoint: .trailing)
-                    VStack(spacing: 2) {
-                        Text(brand.maker).font(.print(7)).tracking(1)
-                        Text(brand.speed).font(.print(22)).italic()
-                        Rectangle().fill(brand.band).frame(height: 8)
-                        Text("135").font(.print(7))
-                    }
-                    .foregroundStyle(brand.ink)
-                    LinearGradient(colors: [.clear, .white.opacity(0.3), .clear], startPoint: .leading, endPoint: .trailing)
-                        .blendMode(.screen)
-                }
-                .frame(width: 70, height: 104)
-                cap
-            }
-            FilmStrip()
-                .frame(width: 34, height: 70)
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 14, topTrailingRadius: 4))
-                .offset(y: 4)
-        }
-        .shadow(color: .black.opacity(0.5), radius: 8, y: 6)
-        .frame(width: 110, height: 130)
-        .contentShape(Rectangle())
-    }
-
-    private var cap: some View {
-        Capsule()
-            .fill(LinearGradient(colors: [Color(white: 0.45), Color(white: 0.85), Color(white: 0.4)], startPoint: .leading, endPoint: .trailing))
-            .frame(width: 74, height: 12)
-    }
-}
-
-/// The back door sliding shut over the chamber.
-private struct Door: View {
-    let brand: FilmBrand
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(LinearGradient(colors: [Color(white: 0.2), Plastic.body], startPoint: .top, endPoint: .bottom))
-            .overlay(
-                VStack(spacing: 8) {
-                    ForEach(0..<8, id: \.self) { _ in Capsule().fill(.black.opacity(0.35)).frame(width: 120, height: 2) }
-                }
-            )
-            .overlay(
-                Text("\(brand.line) \(brand.speed)")
-                    .font(.print(11))
-                    .tracking(1)
-                    .foregroundStyle(brand.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(brand.sleeve, in: Capsule())
-            )
-            .frame(width: 172, height: 262)
-            .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
     }
 }

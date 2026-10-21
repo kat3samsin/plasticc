@@ -1,17 +1,32 @@
 # Plasticc: plan
 
-A disposable film camera for iPhone. Pick a film, tear the plastic off the camera, load the film, shoot the roll without seeing a single frame, rewind, develop, then sort the prints like a deck of cards.
+A film camera for iPhone. Buy a roll of film, open the box, load it into your camera, shoot the roll without seeing a single frame, rewind, take it to the lab, then sort the prints like a deck of cards.
 
 Planned with Fable 5.1 on 2026-10-20. The earlier manual-controls app lives untouched in a separate `film-cam` project; port code from there, don't copy it wholesale.
 
+## Film-first (2026-10-21)
+
+The app started as a disposable camera dressed in each film's colours. But the camera never changes; the film is the choice that changes the pictures. So Plasticc is now film-first: you keep one camera, and you buy and load rolls of film.
+
+| Part | Decision |
+|---|---|
+| The camera | One Snappy 35 you keep: a charcoal plastic point-and-shoot with a cream panel and orange accents. It looks the same on every roll. The loaded film shows through a film window on the back. |
+| Film counter | A shelf of film boxes to swipe through. Each box is the film's own colours, with its speed, "135-24" and its process. Exposure stickers as before; "Buy this roll". |
+| Opening the box | Lift the box's end flap, slide the plastic tube out, and pop the tube's lid off. The canister drops out. Replaces the shrink-wrap tear. |
+| Loading | The back is open. Drag the canister into the chamber, then pull the leader across to the take-up spool. The back snaps shut. |
+| Unloading | After the crank, the back pops open. Drag the canister into the lab envelope to send it off. |
+| Feel | New synthesised sounds with matching haptics: the cardboard flap, the tube's pop, the leader sliding over the sprockets, the back's latch, and the canister dropping into the envelope. |
+| Model | Unchanged. The `sealed` and `unwrapped` phases now mean "box still closed" and "canister out of the box", so rolls in progress keep working. |
+| Names | Real film names stay for personal use. A film-first app makes the App Store rename simple: each box becomes our own brand. |
+
 ## Status (2026-10-20)
 
-All ten milestones are built. The whole flow runs in the simulator, from the shop counter to the summary screen. 54 package tests pass (`swift test` in `PlasticcCore`).
+All ten milestones are built. The whole flow runs in the simulator, from the film counter to the summary screen. 77 package tests pass (`swift test` in `PlasticcCore`).
 
 | Area | Where | State |
 |---|---|---|
-| Shop counter, 12/24/36, lab-order settings | `App/Pick`, `App/Settings` | Done; checked in simulator |
-| Shrink-wrap tear, canister load | `App/Unbox` | Done; checked in simulator |
+| Film counter, 3 (debug)/12/24/36, lab-order settings | `App/Pick`, `App/Settings` | Done; checked in simulator |
+| Open the box, pop the tube, load and thread | `App/Unbox` | Done (film-first, 2026-10-21); checked in simulator |
 | Camera back: counter wheel, finder, flash charge and ready lamp, thumbwheel, shutter | `App/Shoot`, `App/Look` | Done; camera and flash checked on iPhone Air (milestone 4 build) |
 | Rewind crank | `App/Rewind`, `RewindCrank.swift` | Done; checked in simulator |
 | Lab envelope, countdown, notification | `App/Lab/LabView.swift` | Done; 1-hour notification not yet seen on a device |
@@ -20,7 +35,7 @@ All ten milestones are built. The whole flow runs in the simulator, from the sho
 | Sounds and haptics | `App/Feel/Feel.swift`, `App/Sounds`, `tools/make_sounds.py` | Synthesised and wired; not yet heard or felt on a device |
 | App icon | `tools/make_icon.swift` | Done |
 
-Still to check on the iPhone: how the haptics and sounds feel (tear, wheel, crank, shutter, flash whine), develop time and memory on a 36-frame roll, and the notification.
+Still to check on the iPhone: how the haptics and sounds feel (box flap, tube pop, leader ticks, wheel, crank, back latch, shutter, flash whine), develop time and memory on a 36-frame roll, and the notification.
 
 Tools: `swift run -c release contact-sheet out.jpg photo.jpg …` in `PlasticcCore` develops photos with every film; `python3 tools/make_sounds.py` rebuilds the sounds; `swift tools/make_icon.swift App/Assets.xcassets/AppIcon.appiconset/icon.png` redraws the icon.
 
@@ -77,8 +92,8 @@ Developing: when the roll is rewound, set `readyAt` from the develop-time settin
 
 ## Screens
 
-1. **Pick:** camera, three film boxes, 12/24/36 picker. Settings button.
-2. **Unbox:** tear the wrap (drag from a corner tab, jagged edge, crinkle haptics every 24 pt, springs away past 65 %), drag the canister into the chamber (snap and clunk), door shuts, first wind.
+1. **Pick:** a shelf of film boxes, 12/24/36 picker (and 3 in debug builds). Settings button.
+2. **Unbox:** lift the box's end flap, pull the tube out, pop its lid; then drag the canister into the chamber (clunk), pull the leader across to the spool (a tick per sprocket hole), the back snaps shut, first wind.
 3. **Shoot:** finder, counter window, flash switch, shutter, wind wheel.
 4. **Rewind:** crank.
 5. **Developing:** countdown until `readyAt`, then the render animation.
@@ -93,7 +108,7 @@ Developing: when the roll is rewound, set `readyAt` from the develop-time settin
 
 - `swift test`: every roll transition and refused transition, resume after decode, store write order, look engine on synthetic images (HP5 is grey, Portra warmer than source, vignette darkens corners, same seed gives identical output, leak chance higher on frames 1–2), crop size, date stamp position and on/off.
 - Simulator: a full 12-shot roll on sample images, force-quit resume, instant develop, deck to Photos, denied-permission paths.
-- Device only: preview, flash, haptics feel (tear, wind, rewind), silent switch, notification after 1 hour, develop time and memory on 36 × 12 MP.
+- Device only: preview, flash, haptics feel (box, tube, leader, wind, rewind), silent switch, notification after 1 hour, develop time and memory on 36 × 12 MP.
 
 ## Milestones
 
@@ -107,7 +122,7 @@ Each one is PR-sized: step → verification.
 6. **Develop timing** (setting, `readyAt`, notification) → instant path in the simulator; 1-hour notification on device.
 7. **Film looks, leaks, date stamp** (port the engine, research the stocks) → look tests green; prints look like the stock.
 8. **Review deck** → kept frames in Photos, trashed ones gone, `Roll/` empty after the last card.
-9. **Unboxing** (tear and load) → device: tear feels right, can't be skipped.
+9. **Unboxing** (open the box and load) → device: each step feels right, can't be skipped.
 10. **Polish** (icon, sounds, accessibility labels, device checklist) → full checklist on iPhone.
 
 ## Port from film-cam

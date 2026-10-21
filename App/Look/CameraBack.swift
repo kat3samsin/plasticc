@@ -1,56 +1,66 @@
 import SwiftUI
 
-/// The back of the Snappy 35: black plastic body wrapped in the film's printed cardboard sleeve.
+/// The back of your Snappy 35: charcoal plastic with a pebbled grip and a moulded panel.
+/// The same camera on every roll; only the film inside changes.
 struct CameraBack: View {
-    let brand: FilmBrand
-
     var body: some View {
         ZStack {
-            Plastic.body
-            Grain(opacity: 0.1)
+            Plastic.bodyEdge
             RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(brand.sleeve)
-                .overlay(Grain(opacity: 0.16))
-                .overlay(SleevePrint(brand: brand))
-                .overlay(Sheen(strength: 0.14))
+                .fill(LinearGradient(colors: [Color(white: 0.16), Plastic.body, Color(white: 0.085)],
+                                     startPoint: .top, endPoint: .bottom))
+                .overlay(Pebbling().opacity(0.5))
+                .overlay(Grain(opacity: 0.12))
+                .overlay(
+                    // The raised panel the controls sit on.
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .fill(Plastic.panel.opacity(0.55))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                                .strokeBorder(LinearGradient(colors: [.white.opacity(0.1), .black.opacity(0.5)],
+                                                             startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
+                        )
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 18)
+                )
+                .overlay(Sheen(strength: 0.07))
                 .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .strokeBorder(.black.opacity(0.25), lineWidth: 1)
+                        .strokeBorder(.white.opacity(0.07), lineWidth: 1)
                 )
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .shadow(color: .black.opacity(0.5), radius: 3)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .shadow(color: .black.opacity(0.6), radius: 3)
         }
         .ignoresSafeArea()
     }
 }
 
-/// Graphics printed on the sleeve: speed lines behind everything, like a cheerful 90s box.
-private struct SleevePrint: View {
-    let brand: FilmBrand
-
+/// The fine pebbled texture of moulded grip plastic, drawn once as a tile.
+private struct Pebbling: View {
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Diagonal speed stripes across the lower corner.
-                ForEach(0..<4, id: \.self) { i in
-                    Rectangle()
-                        .fill(brand.band.opacity(0.9 - Double(i) * 0.18))
-                        .frame(width: geo.size.width * 1.6, height: 10 + CGFloat(i) * 3)
-                        .rotationEffect(.degrees(-22))
-                        .offset(x: geo.size.width * 0.15, y: geo.size.height * (0.47 + Double(i) * 0.03))
-                }
-                // A large faded film speed, like the number on a box.
-                Text(brand.speed)
-                    .font(.print(220))
-                    .italic()
-                    .foregroundStyle(brand.ink.opacity(0.07))
-                    .offset(x: geo.size.width * 0.28, y: geo.size.height * 0.36)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        Image(uiImage: Self.tile)
+            .resizable(resizingMode: .tile)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
+
+    private static let tile: UIImage = {
+        let step: CGFloat = 5, rows = 8
+        let size = CGSize(width: step * 8, height: step * 0.87 * CGFloat(rows))
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            for row in 0..<rows {
+                let y = CGFloat(row) * step * 0.87
+                var x: CGFloat = row % 2 == 0 ? 0 : step / 2
+                while x < size.width {
+                    ctx.cgContext.setFillColor(UIColor.white.withAlphaComponent(0.05).cgColor)
+                    ctx.cgContext.fillEllipse(in: CGRect(x: x, y: y, width: 2.2, height: 2.2))
+                    ctx.cgContext.setFillColor(UIColor.black.withAlphaComponent(0.18).cgColor)
+                    ctx.cgContext.fillEllipse(in: CGRect(x: x + 0.6, y: y + 0.9, width: 2.2, height: 2.2))
+                    x += step
+                }
+            }
+        }
+    }()
 }

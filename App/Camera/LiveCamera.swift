@@ -106,7 +106,7 @@ extension LiveCamera: AVCapturePhotoCaptureDelegate {
             finish(id) { _ in .failure(error) }
         } else if let data = photo.fileDataRepresentation() {
             let ev = Self.sceneEV100(photo.metadata)
-            finish(id) { .success(Capture(data: data, source: .phone, sceneEV100: ev, fileExtension: $0)) }
+            finish(id) { .success(Capture(data: data, sceneEV100: ev, fileExtension: $0)) }
         } else {
             finish(id) { _ in .failure(CameraError.noImage) }
         }

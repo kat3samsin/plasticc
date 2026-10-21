@@ -15,7 +15,7 @@ struct RootView: View {
                     PickFilmView(model: model)
                 }
             case .sealed:
-                UnwrapView(model: model)
+                OpenBoxView(model: model)
             case .unwrapped:
                 LoadFilmView(model: model)
             case .loaded, .shooting:
