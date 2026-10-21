@@ -18,20 +18,28 @@ Sources:
 - [Digital Camera World](https://www.digitalcameraworld.com/reviews/fujifilm-superior-x-tra-400-35mm-film-review)
 - [Analog.Cafe](https://www.analog.cafe/r/fujifilm-superia-x-tra-400-film-review-zc0y)
 
-## Kodak Portra 800
+## Kodak Portra 400
 
-The film in some Kodak single-use cameras.
+Replaced Portra 800 on 2026-10-21. Rolls already loaded with Portra 800 develop as Portra 400.
 
-- It is warmer and more saturated than Portra 400. Noritsu scans come out yellow-orange.
-- Contrast is natural, with a soft highlight rolloff.
-- Skin rendering is the best of any ISO 800 film.
-- Grain is visible but not heavy (PGI 48).
-- Layer gammas are about 0.52 / 0.49 / 0.53: low and nearly balanced, so it barely crosses over.
-- Its antihalation layer is strong: little glow.
+- **Grain:** finer than 800. Kodak rates its Print Grain Index at 37 for a 4×6, against 48 for 800, so its grain is set lower than the other films'.
+- **Colour:** natural and warm, with flattering skin, and a touch less saturated than 800.
+- **Contrast:** low and nearly balanced across the layers, like 800, so it barely crosses over.
+- **Highlights:** a soft rolloff. Its strong antihalation layer means little glow.
+- **Exposure:** mid-grey sits a little under the other films, so bright, sunny frames don't wash out.
 
 Sources:
-- [35mmc](https://www.35mmc.com/03/06/2019/kodak-portra-800-a-review-some-thoughts-on-shooting-it-within-my-workflow/)
-- [Analog.Cafe](https://analog.cafe/r/kodak-portra-800-film-review-pvm3)
+- [PetaPixel](https://petapixel.com/2026/08/14/the-excellent-kodak-ultramax-400-is-an-unfortunate-victim-of-bad-branding/), quoting Kodak's Print Grain Index of 37
+- [35mmc](https://www.35mmc.com/03/06/2019/kodak-portra-800-a-review-some-thoughts-on-shooting-it-within-my-workflow/), comparing it with 800
+
+## Kodak Ektar 100
+
+Added 2026-10-21 as the colourful choice.
+
+- **Colour:** the most saturated of the four. Deep, glowing reds and oranges, rich blues and vivid greens, with skin leaning a little red, as Ektar is known for.
+- **Contrast:** high, with cool-tinged shadows.
+- **Grain:** the finest of any colour negative. Kodak rates its Print Grain Index at 25, the visibility threshold.
+- **Exposure:** as an ISO 100 film it would be about two stops darker indoors in a real disposable. The app keeps the same exposure as the 400 films, so Ektar rolls aren't mostly black indoors.
 
 ## Ilford HP5 Plus 400
 
@@ -62,7 +70,7 @@ Measured on ColorChecker patches (`FilmCharacterTests`):
 | Film | Chroma | Signature |
 |---|---|---|
 | Superia | about 11% more on average | Greens 20–26% richer and 9° toward teal; skin hue unchanged |
-| Portra 800 | about 8% less | Skin about 5° toward orange; greens and sky softer |
+| Portra 400 | about 10% less | Skin toward orange; greens and sky softer |
 
 The research behind this, and the next steps, are in the "accurate film emulation" research of 2026-10-21:
 
@@ -75,13 +83,16 @@ The research behind this, and the next steps, are in the "accurate film emulatio
 - **Exposure:** fixed at f/10 and 1/100 s on ISO 400 film, which suits a scene of about EV 11.3 at ISO 100. `Developer` reads the scene's brightness from the iPhone's EXIF.
   - Bright scenes are mostly absorbed by negative film's latitude.
   - Dim scenes print darker and grainier, after about 2 stops of rescue from the scanner.
+  - Bright, sunny scenes print at most +0.3 stops over, and their dense negatives print up to 30% finer grain.
   - The flash reaches about 2 m, so a flash shot prints no darker than −0.4 stops.
-- **Lens:** a one- or two-element plastic lens. Prints are soft overall, softer toward the corners, and vignetted.
+- **Lens:** sharp in the centre, slightly softer toward the corners, lightly vignetted. The film character comes from colour, tone and grain, not blur, like a good camera with film simulations (think X100VI) rather than a smeared plastic lens. A light unsharp mask stands in for the lab scanner's sharpening, applied before the grain.
+- **Capture:** frames are the iPhone's own photo at the sensor's full resolution (48 MP on recent iPhones), in HEIF. iOS's tone mapping is partly undone before the film curve, and downsampling to a 24 MP print smooths away most of its sharpening. RAW capture was tried on 2026-10-21 but gave only 12 MP on the iPhone Air (no ProRAW on non-Pro models), which looked soft. The lab still develops RAW originals (scene-linear ÷ 4, per-frame white point) if a roll has any.
 - **Flash:** weak and fixed. The subject is lit, the background falls away to dark, and the cast is slightly cool.
 - **Halation:** most of the glow in disposable shots is lens bloom. It is modelled on the colour films only, stronger on Superia (weak antihalation) than Portra (strong).
 - **Light leaks:** film near the leader gets fogged while loading, so frame 1 leaks 55% of the time, frame 2 30%, and later frames 12%.
-- **Date stamp:** orange LED segments in the bottom right, in the format `'26 10 20`.
-- **Scan size:** prints come out at a Frontier's 3088 px long edge.
+- **Date stamp:** red-orange LED segments that tint toward red-orange where lit, so they show on white walls as real stamps do, in month-day-year order, `10 21 '26`. Landscape frames get it in the bottom right. On portrait frames, which are the camera turned on its side, it runs top to bottom near the lower left, as on real disposable scans.
+- **Dust:** each frame gets 3–10 faint, soft white specks and, about one time in three, a very faint hair, as a lab scan picks up dust on the negative. Seeded, so the same frame always gets the same dust.
+- **Print size:** 6048 px on the long edge (24 MP). Larger originals are downsampled; 12 MP RAW is enlarged with a Lanczos resampler before the scanner sharpening and grain, so both work at print resolution, as on a real scan, and the grain looks like grain rather than enlarged pixels.
 
 Confidence: medium on each stock's direction, low on exact magnitudes and on lens softness and vignette, which are judgement calls. Compare against real scans when there's a chance.
 
@@ -89,7 +100,7 @@ Confidence: medium on each stock's direction, low on exact magnitudes and on len
 
 Grain was too strong and looked like digital noise, so it was rebuilt from published figures:
 
-- **Strength:** set as RMS deviation in 8-bit levels on midtones of a 3088 px scan. Superia 2.0, Portra 800 2.2, HP5 2.8.
+- **Strength:** set as RMS deviation in 8-bit levels on midtones of a 3088 px scan. Superia 2.8, Portra 400 2.3, Ektar 1.5, HP5 3.6: above the figures from the published grain indexes, because a little more grain read better than the clean minimum on phone screens. Grain is two layers, fine crisp clumps over fainter coarse ones.
   - Kodak rates Portra 800 at a Print Grain Index of 48 for a 4×6 from 35 mm ([E-4040](https://business.kodakmoments.com/sites/default/files/files/products/e4040_portra_800.pdf)). That is about five just-noticeable steps above the visibility threshold of 25: fine grain you see if you look.
   - Superia X-TRA 400 is placed in the same class as Ultramax (PGI about 44). Fuji's "RMS 4" is on a different scale, so it can't be compared directly.
   - HP5 has no published figure. It sits a little above the colour films, as reviews describe ([PetaPixel](https://petapixel.com/2016/11/18/ilford-hp5-plus-film-profile-not-just-cheap-knockoff-kodak-tri-x/)).

@@ -59,7 +59,7 @@ struct FullPrint: View {
         }
         .task {
             let url = url
-            image = await Task.detached { Thumbnail.load(url, maxPixel: 3200) }.value
+            image = await Task.detached { Thumbnail.load(url, maxPixel: 6048) }.value
         }
     }
 

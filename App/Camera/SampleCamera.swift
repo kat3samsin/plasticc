@@ -14,13 +14,13 @@ final class SampleCamera: PhotoCapturing {
     func start() async -> Bool { true }
     func stop() {}
 
-    func capture(flash: Bool) async throws -> Data {
+    func capture(flash: Bool) async throws -> Capture {
         let name = names[next]
         guard let url = Bundle.main.url(forResource: name, withExtension: "jpg") else {
             throw SampleError.missing(name)
         }
         next = (next + 1) % names.count
-        return try Data(contentsOf: url)
+        return Capture(data: try Data(contentsOf: url), source: .phone, sceneEV100: nil, fileExtension: "jpg")
     }
 
     private func image(_ name: String) -> UIImage? {

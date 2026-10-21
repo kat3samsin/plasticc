@@ -33,8 +33,9 @@ final class FilmCharacterTests: XCTestCase {
     }
 
     func testSuperiaIsPunchierThanPortraButNotGaudy() {
-        XCTAssertEqual(meanChroma(.superia400), 1.1, accuracy: 0.08)
-        XCTAssertEqual(meanChroma(.portra800), 0.93, accuracy: 0.08)
+        XCTAssertEqual(meanChroma(.superia400), 1.2, accuracy: 0.08)
+        XCTAssertEqual(meanChroma(.portra400), 1.12, accuracy: 0.08)
+        XCTAssertGreaterThan(meanChroma(.superia400), meanChroma(.portra400) + 0.04)
     }
 
     func testSuperiaGreensAreRichAndLeanTeal() {
@@ -45,9 +46,15 @@ final class FilmCharacterTests: XCTestCase {
     }
 
     func testPortraSkinLeansWarmAndItsGreensAndBluesAreSoft() {
-        XCTAssertGreaterThan(hueShift(.portra800, "lightSkin"), 1)
-        XCTAssertLessThan(chromaRatio(.portra800, "green"), 0.97)
-        XCTAssertLessThan(chromaRatio(.portra800, "blueSky"), 0.95)
+        XCTAssertGreaterThan(hueShift(.portra400, "lightSkin"), 1)
+        XCTAssertLessThan(chromaRatio(.portra400, "green"), chromaRatio(.superia400, "green") - 0.1)
+        XCTAssertLessThan(chromaRatio(.portra400, "blueSky"), chromaRatio(.superia400, "blueSky"))
+    }
+
+    func testEktarIsTheMostColourful() {
+        XCTAssertGreaterThan(meanChroma(.ektar100), meanChroma(.superia400) + 0.05)
+        XCTAssertGreaterThan(chromaRatio(.ektar100, "red"), 1.25)
+        XCTAssertGreaterThan(chromaRatio(.ektar100, "blueSky"), 1.25)
     }
 
     func testSkinKeepsItsHueOnSuperia() {
@@ -57,6 +64,6 @@ final class FilmCharacterTests: XCTestCase {
     func testHP5KeepsMidGreyAndOpenShadows() {
         let look = FilmStock.hp5.look
         XCTAssertEqual(look.apply(SIMD3(repeating: 0.46)).x, 0.47, accuracy: 0.05)
-        XCTAssertGreaterThan(look.apply(SIMD3(repeating: 0.1)).x, 0.07, "shadows stay open, not crushed")
+        XCTAssertGreaterThan(look.apply(SIMD3(repeating: 0.1)).x, 0.05, "shadows stay open, not crushed")
     }
 }

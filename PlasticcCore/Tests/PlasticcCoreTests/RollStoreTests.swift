@@ -20,7 +20,7 @@ final class RollStoreTests: XCTestCase {
 
     func shootingStore(_ length: RollLength = .short) throws -> RollStore {
         let store = RollStore(directory: dir)
-        try store.start(film: .portra800, length: length)
+        try store.start(film: .portra400, length: length)
         try store.tear()
         try store.load()
         return store

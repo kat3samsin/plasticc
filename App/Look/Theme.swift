@@ -49,11 +49,16 @@ extension FilmStock {
                       blurb: "Cool and punchy. Green shadows, bright blues.",
                       sleeve: Color(red: 0.0, green: 0.52, blue: 0.29), band: Color(red: 0.86, green: 0.10, blue: 0.16),
                       ink: .white, bandInk: .white)
-        case "portra800":
-            FilmBrand(maker: "KODAK", line: "PORTRA", speed: "800",
-                      blurb: "Warm and soft. Kind to skin, good in low light.",
+        case "portra400":
+            FilmBrand(maker: "KODAK", line: "PORTRA", speed: "400",
+                      blurb: "Natural and warm. Kind to skin, fine grain.",
                       sleeve: Color(red: 0.99, green: 0.74, blue: 0.04), band: Color(red: 0.82, green: 0.12, blue: 0.10),
                       ink: Color(red: 0.12, green: 0.08, blue: 0.06), bandInk: .white)
+        case "ektar100":
+            FilmBrand(maker: "KODAK", line: "EKTAR", speed: "100",
+                      blurb: "Vivid and punchy. Deep reds, rich blues, finest grain.",
+                      sleeve: Color(red: 0.78, green: 0.1, blue: 0.12), band: Color(red: 0.99, green: 0.76, blue: 0.06),
+                      ink: .white, bandInk: Color(red: 0.15, green: 0.05, blue: 0.03))
         default:
             FilmBrand(maker: "ILFORD", line: "HP5 PLUS", speed: "400",
                       blurb: "Black and white. Grainy, deep blacks.",

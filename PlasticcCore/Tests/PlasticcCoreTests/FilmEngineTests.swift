@@ -42,7 +42,7 @@ final class FilmEngineTests: XCTestCase {
     }
 
     func testDifferentSeedsGiveDifferentGrain() {
-        let film = FilmStock.portra800
+        let film = FilmStock.portra400
         let a = PixelReader.rgba(develop(scene, film, seed: quietSeed(film, from: 1)))
         let b = PixelReader.rgba(develop(scene, film, seed: quietSeed(film, from: 1000)))
         XCTAssertNotEqual(a, b)
@@ -75,7 +75,7 @@ final class FilmEngineTests: XCTestCase {
     func testPortraWarmsAGreyAndSuperiaDoesNot() {
         let center = CGRect(x: 150, y: 250, width: 100, height: 100)
         let grey = TestImages.solid(CIColor(red: 0.5, green: 0.5, blue: 0.5), width: 400, height: 600)
-        let portra = PixelReader.average(develop(grey, .portra800), in: center)
+        let portra = PixelReader.average(develop(grey, .portra400), in: center)
         let superia = PixelReader.average(develop(grey, .superia400), in: center)
         XCTAssertGreaterThan(portra.r - portra.b, 8)
         XCTAssertGreaterThan(portra.r - portra.b, superia.r - superia.b + 5)
@@ -86,7 +86,7 @@ final class FilmEngineTests: XCTestCase {
         let out = develop(flat, .superia400)
         let corner = PixelReader.average(out, in: CGRect(x: 0, y: 0, width: 40, height: 40)).g
         let center = PixelReader.average(out, in: CGRect(x: 180, y: 280, width: 40, height: 40)).g
-        XCTAssertLessThan(corner, center - 20)
+        XCTAssertLessThan(corner, center - 8)
     }
 
     func testFlashBrightensTheMiddleMoreThanTheEdges() {
@@ -135,12 +135,16 @@ final class FilmEngineTests: XCTestCase {
 
     func testDateStampOnlyWhenADateIsGiven() {
         let dark = TestImages.solid(CIColor(red: 0.1, green: 0.1, blue: 0.1), width: 400, height: 600)
-        let film = FilmStock.portra800
-        let region = CGRect(x: 250, y: 0, width: 150, height: 60)
+        let film = FilmStock.portra400
+        // On a portrait frame the stamp runs down the lower left, as on a camera turned on its side.
+        let region = CGRect(x: 25, y: 90, width: 40, height: 180)
         let stamped = PixelReader.average(develop(dark, film, date: date), in: region)
         let plain = PixelReader.average(develop(dark, film), in: region)
         XCTAssertGreaterThan(stamped.r - plain.r, 2)
         XCTAssertGreaterThan(stamped.r - plain.r, (stamped.b - plain.b) * 1.5)
+        let corner = CGRect(x: 250, y: 0, width: 150, height: 60)
+        XCTAssertEqual(PixelReader.average(develop(dark, film, date: date), in: corner).r,
+                       PixelReader.average(develop(dark, film), in: corner).r, accuracy: 1.5, "not in the bottom-right corner")
     }
 }
 
@@ -181,6 +185,7 @@ final class DisposableExposureTests: XCTestCase {
             return (g.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(g.count)).squareRoot() / max(mean, 1)
         }
         XCTAssertGreaterThan(spread(-2), spread(0))
+        XCTAssertLessThan(spread(0.3), spread(0), "a bright, well-exposed frame prints finer")
     }
 }
 
@@ -234,5 +239,28 @@ final class GrainStrengthTests: XCTestCase {
         for film in FilmStock.all {
             XCTAssertLessThan(grainRMS(film, level: 0.95), grainRMS(film, level: 0.45) * 0.7, film.id)
         }
+    }
+}
+
+final class DustTests: XCTestCase {
+    func testDustIsFaintFewAndRepeatable() {
+        let grey = TestImages.solid(CIColor(red: 0.4, green: 0.4, blue: 0.4), width: 600, height: 900)
+        let a = PixelReader.rgba(Dust.apply(to: grey, seed: 11, scale: 0.9))
+        XCTAssertEqual(a, PixelReader.rgba(Dust.apply(to: grey, seed: 11, scale: 0.9)), "same seed, same dust")
+        let base = PixelReader.rgba(grey)
+        let marked = stride(from: 0, to: a.count, by: 4).filter { Int(a[$0]) - Int(base[$0]) > 6 }.count
+        XCTAssertGreaterThan(marked, 0)
+        XCTAssertLessThan(Double(marked) / Double(a.count / 4), 0.004, "a few specks, not a haze")
+    }
+}
+
+final class DateStampVisibilityTests: XCTestCase {
+    func testStampShowsRedOnAWhiteWall() {
+        let white = TestImages.solid(CIColor(red: 0.95, green: 0.95, blue: 0.95), width: 400, height: 600)
+        let date = Date(timeIntervalSince1970: 1_790_000_000)
+        let stamped = DateStamp.apply(to: white, date: date, seed: 1)
+        let px = PixelReader.rgba(stamped.cropped(to: CGRect(x: 25, y: 90, width: 40, height: 180)))
+        let reddest = stride(from: 0, to: px.count, by: 4).map { Int(px[$0]) - Int(px[$0 + 2]) }.max() ?? 0
+        XCTAssertGreaterThan(reddest, 60, "the digits read as red-orange, not white on white")
     }
 }

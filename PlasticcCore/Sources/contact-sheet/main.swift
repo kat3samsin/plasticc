@@ -30,7 +30,10 @@ for (row, photo) in photos.enumerated() {
     guard let source = CIImage(contentsOf: photo, options: [.applyOrientationProperty: true]) else { continue }
     place(source, column: 0, row: row)
     for (column, film) in FilmStock.all.enumerated() {
-        let shot = Roll.Shot(file: "", takenAt: Date(), flash: false, seed: UInt64(row * 31 + 7))
+        // HEIF originals here come from Plasticc's RAW capture.
+        let raw = photo.pathExtension.lowercased() == "heic"
+        let shot = Roll.Shot(file: "", takenAt: Date(), flash: false, seed: UInt64(row * 31 + 7),
+                             source: raw ? .raw : .phone, sceneEV100: raw ? 11.3 : nil)
         let data = try developer.develop(original: photo, film: film, shot: shot, frameIndex: 4, dateStamp: true)
         place(CIImage(data: data)!, column: column + 1, row: row)
         if let dir = ProcessInfo.processInfo.environment["PRINTS_DIR"] {

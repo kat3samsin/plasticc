@@ -16,25 +16,33 @@ public final class FilmEngine: @unchecked Sendable {
     ///   - frameIndex: 0 for the first frame on the roll; the first two are fogged more often while loading.
     ///   - date: the date to imprint, or nil for no stamp.
     ///   - exposure: stops away from a good exposure, from `disposableExposure`; negative is dark.
+    ///   - source: how `image` was made; a RAW original carries highlights above white.
+    ///   - white: the decoded linear light to print as white, set per frame (see `Developer.scanWhite`).
     public func develop(_ image: CIImage, film: FilmStock, seed: UInt64, frameIndex: Int, flash: Bool, date: Date?,
-                        exposure: Double = 0) -> CIImage {
+                        exposure: Double = 0, source: CaptureSource = .phone, white: Double? = nil) -> CIImage {
         let framed = Self.cropToPrint(image)
         let extent = framed.extent
         // Effect sizes are tuned at a 1000 px long edge, so every resolution looks alike.
         let scale = max(extent.width, extent.height) / 1000
         var out = exposure == 0 ? framed : framed.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: exposure])
-        out = applyingLUT(out, film: film)
+        out = applyingLUT(out, film: film, source: source, white: white)
         out = softened(out, sigma: film.softness * scale, extent: extent)
+        // A lab scanner's unsharp mask, before the grain so the grain itself stays soft.
+        out = out.applyingFilter("CISharpenLuminance", parameters: [
+            kCIInputSharpnessKey: Self.scanSharpening, kCIInputRadiusKey: 0.35 * scale,
+        ])
         if film.halation > 0 { out = haloed(out, source: framed, amount: film.halation, extent: extent, scale: scale) }
         if flash { out = flashed(out, extent: extent) }
-        // Underexposed negatives print grainier.
+        // Underexposed negatives print grainier; well-exposed, dense ones in bright light print finer.
         var grain = film.grain
         grain.rms *= 1 + grain.underexposure * min(2, max(0, -exposure))
+        grain.rms *= 1 - min(0.35, max(0, exposure))
         out = grained(out, grain, extent: extent, scale: scale, seed: seed)
         if Self.leakFires(film: film, seed: seed, frameIndex: frameIndex) {
             out = applyingLightLeak(to: out, tones: film.leakTones, seed: seed)
         }
         out = vignetted(out, amount: film.vignette, extent: extent)
+        out = Dust.apply(to: out, seed: seed, scale: scale)
         if let date { out = DateStamp.apply(to: out, date: date, seed: seed) }
         // Composite over black so alpha is 1 everywhere.
         return out.cropped(to: extent).composited(over: CIImage(color: .black).cropped(to: extent))
@@ -59,7 +67,7 @@ public final class FilmEngine: @unchecked Sendable {
     /// unless the flash fired, which reaches about two metres.
     public static func disposableExposure(sceneEV100: Double, flash: Bool) -> Double {
         let delta = sceneEV100 - fixedEV100
-        let printed = delta >= 0 ? min(0.6, delta * 0.15) : min(0, delta + 2)
+        let printed = delta >= 0 ? min(0.3, delta * 0.1) : min(0, delta + 2)
         return max(-2.6, flash ? max(printed, -0.4) : printed)
     }
 
@@ -81,37 +89,40 @@ public final class FilmEngine: @unchecked Sendable {
 
     // MARK: - Steps
 
-    private func cube(for film: FilmStock) -> Data {
+    private func cube(for film: FilmStock, source: CaptureSource, white: Double?) -> Data {
         lock.lock()
         defer { lock.unlock() }
-        if let cached = cubes[film.id] { return cached }
-        let data = film.look.cubeData(size: Self.cubeSize)
-        cubes[film.id] = data
+        let key = "\(film.id)-\(source.rawValue)-\(white.map { String($0) } ?? "full")"
+        if let cached = cubes[key] { return cached }
+        let data = film.look.cubeData(size: Self.cubeSize, source: source, white: white)
+        cubes[key] = data
         return data
     }
 
-    private func applyingLUT(_ image: CIImage, film: FilmStock) -> CIImage {
+    private func applyingLUT(_ image: CIImage, film: FilmStock, source: CaptureSource, white: Double?) -> CIImage {
         image.applyingFilter("CIColorCubeWithColorSpace", parameters: [
             "inputCubeDimension": Self.cubeSize,
-            "inputCubeData": cube(for: film),
+            "inputCubeData": cube(for: film, source: source, white: white),
             "inputColorSpace": Self.sRGB,
         ])
     }
 
-    /// A plastic lens: soft all over, softer toward the corners.
+    /// How hard the lab's scanner sharpens, as `CISharpenLuminance` sharpness.
+    static let scanSharpening = 0.3
+
+    /// The lens: sharp in the middle, a touch softer toward the corners.
     private func softened(_ image: CIImage, sigma: Double, extent: CGRect) -> CIImage {
         guard sigma > 0 else { return image }
-        let base = image.clampedToExtent().applyingGaussianBlur(sigma: sigma)
         let long = max(extent.width, extent.height)
         let mask = CIFilter(name: "CIRadialGradient", parameters: [
             "inputCenter": CIVector(x: extent.midX, y: extent.midY),
-            "inputRadius0": long * 0.3,
-            "inputRadius1": long * 0.75,
+            "inputRadius0": long * 0.42,
+            "inputRadius1": long * 0.8,
             "inputColor0": CIColor.black,
             "inputColor1": CIColor.white,
         ])!.outputImage!
-        return base
-            .applyingFilter("CIMaskedVariableBlur", parameters: ["inputMask": mask, kCIInputRadiusKey: sigma * 3.5])
+        return image.clampedToExtent()
+            .applyingFilter("CIMaskedVariableBlur", parameters: ["inputMask": mask, kCIInputRadiusKey: sigma * 2])
             .cropped(to: extent)
     }
 
@@ -155,30 +166,31 @@ public final class FilmEngine: @unchecked Sendable {
             ])
     }
 
-    /// Film grain: soft clumps rather than pixel noise, mostly luminance with a little colour on colour film,
-    /// strongest in shadows and midtones and fading out of the highlights, as a Frontier scan shows it.
+    /// Film grain as two layers of clumps, as silver and dye clouds form: fine crisp grains over coarser, fainter
+    /// clusters, so it never reads as one even, blurred noise. Mostly luminance, with each colour layer adding
+    /// a little of its own on colour film. Strongest in shadows and midtones, fading out of the highlights, as a
+    /// Frontier scan shows it.
     private func grained(_ image: CIImage, _ grain: FilmStock.Grain, extent: CGRect, scale: CGFloat, seed: UInt64) -> CIImage {
         guard grain.rms > 0 else { return image }
-        let sigma = max(0.6, 0.5 * grain.size * Double(scale))
-        // Uniform noise (σ 0.289) blurred by a Gaussian of σ px keeps about 0.289 / (3.545 σ) of its spread.
-        let noiseSpread = 0.289 / (3.545 * sigma)
+        let size = grain.size * Double(scale)
+        // Each layer is scaled to unit spread, so the two add up to exactly `grain.rms`.
+        let fine = grainLayer(seed: seed, sigma: max(0.7, 0.32 * size), weight: 0.8, chroma: grain.chroma,
+                              alpha: 1, extent: extent)
+        // Alpha 0, so adding it to the fine layer doesn't double the alpha and halve the result.
+        let coarse = grainLayer(seed: seed &* 0x9E37_79B9_7F4A_7C15, sigma: max(1.4, 1.1 * size), weight: 0.6,
+                                chroma: grain.chroma, alpha: 0, extent: extent)
         // Soft light against mid-grey moves a midtone by about 0.45 × (blend − 0.5).
-        let k = CGFloat(grain.rms / (255 * 0.45 * noiseSpread))
-        let c = CGFloat(grain.chroma)
-        // Composite over black first so alpha is 1 and CIColorMatrix's unpremultiply is a no-op.
-        let noise = CIFilter(name: "CIRandomGenerator")!.outputImage!
-            .composited(over: CIImage(color: .black))
-            .transformed(by: CGAffineTransform(translationX: -CGFloat(seed % 8192), y: -CGFloat((seed >> 13) % 8192)))
-            .cropped(to: extent.insetBy(dx: -20, dy: -20))
-            .applyingGaussianBlur(sigma: sigma)
+        let k = CGFloat(grain.rms / (255 * 0.45))
+        let noise = fine
+            .applyingFilter("CIAdditionCompositing", parameters: [kCIInputBackgroundImageKey: coarse])
             .applyingFilter("CIColorMatrix", parameters: [
-                // One shared luminance grain, with a little of each channel's own noise mixed in.
-                "inputRVector": CIVector(x: k * c, y: k * (1 - c), z: 0, w: 0),
+                "inputRVector": CIVector(x: k, y: 0, z: 0, w: 0),
                 "inputGVector": CIVector(x: 0, y: k, z: 0, w: 0),
-                "inputBVector": CIVector(x: 0, y: k * (1 - c), z: k * c, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: k, w: 0),
                 "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-                "inputBiasVector": CIVector(x: 0.5 - k / 2, y: 0.5 - k / 2, z: 0.5 - k / 2, w: 1),
+                "inputBiasVector": CIVector(x: 0.5, y: 0.5, z: 0.5, w: 1),
             ])
+            .applyingFilter("CIColorClamp")
             .cropped(to: extent)
         // Soft light against mid-grey noise: 0.5 leaves a pixel unchanged.
         let grained = noise.applyingFilter("CISoftLightBlendMode", parameters: [kCIInputBackgroundImageKey: image])
@@ -196,6 +208,29 @@ public final class FilmEngine: @unchecked Sendable {
             kCIInputBackgroundImageKey: image,
             kCIInputMaskImageKey: mask,
         ]).cropped(to: extent)
+    }
+
+    /// One layer of grain centred on zero, with spread `weight`: the green channel's noise is shared by all three
+    /// channels, and red and blue mix in `chroma` of their own.
+    private func grainLayer(seed: UInt64, sigma: Double, weight: Double, chroma: Double, alpha: CGFloat,
+                            extent: CGRect) -> CIImage {
+        // Uniform noise (σ 0.289) blurred by a Gaussian of σ px keeps about 0.289 / (3.545 σ) of its spread.
+        let w = CGFloat(weight / (0.289 / (3.545 * sigma)))
+        let c = CGFloat(chroma)
+        // Composite over black first so alpha is 1 and CIColorMatrix's unpremultiply is a no-op.
+        return CIFilter(name: "CIRandomGenerator")!.outputImage!
+            .composited(over: CIImage(color: .black))
+            .transformed(by: CGAffineTransform(translationX: -CGFloat(seed % 8192), y: -CGFloat((seed >> 13) % 8192)))
+            .cropped(to: extent.insetBy(dx: -40, dy: -40))
+            .applyingGaussianBlur(sigma: sigma)
+            .applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: w * c, y: w * (1 - c), z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: w, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: w * (1 - c), z: w * c, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+                "inputBiasVector": CIVector(x: -w / 2, y: -w / 2, z: -w / 2, w: alpha),
+            ])
+            .cropped(to: extent)
     }
 
     private func applyingLightLeak(to image: CIImage, tones: [SIMD3<Double>], seed: UInt64) -> CIImage {

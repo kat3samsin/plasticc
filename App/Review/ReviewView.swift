@@ -219,7 +219,7 @@ struct ReviewView: View {
         guard let roll else { return }
         for index in pending.prefix(4) where images[index] == nil {
             guard let file = roll.shots[index].developedFile else { continue }
-            images[index] = Thumbnail.load(model.url(for: file), maxPixel: 1400)
+            images[index] = Thumbnail.load(model.url(for: file), maxPixel: 1800)
         }
     }
 

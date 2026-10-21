@@ -4,8 +4,8 @@ import Foundation
 /// Baked into a 3D LUT, so none of this costs anything per pixel at develop time.
 ///
 /// The steps, in order:
-/// 1. Decode to linear light and undo part of the phone's highlight compression, so a film shoulder doesn't
-///    squash highlights a second time.
+/// 1. Decode to linear light. A phone photo has part of its highlight compression undone, so a film shoulder
+///    doesn't squash highlights a second time; a RAW original is already scene-linear with real headroom.
 /// 2. White balance (`channelGain`) and exposure.
 /// 3. A characteristic curve per channel, in stops around mid-grey: a log-sigmoid whose steepness is that
 ///    layer's contrast. Different steepness per channel gives the colour crossover between shadows and
@@ -59,13 +59,29 @@ public struct LookSpec: Sendable, Equatable {
 
     public init() {}
 
-    public func apply(_ input: SIMD3<Double>) -> SIMD3<Double> {
-        Prepared(self).apply(input)
+    /// - Parameter white: the decoded linear light that should print as white, as a minilab scanner sets it per
+    ///   frame; highlights up to it roll off through the shoulder. Nil uses the source's full range.
+    public func apply(_ input: SIMD3<Double>, source: CaptureSource = .phone, white: Double? = nil) -> SIMD3<Double> {
+        Prepared(self, source: source, white: white).apply(input)
+    }
+
+    /// The brightest decoded linear light a source can carry.
+    func fullWhite(for source: CaptureSource) -> Double {
+        source == .raw ? CaptureSource.rawHeadroom : 1 + shoulderRecovery
+    }
+
+    /// Decodes one display value of `source` into the linear light the curves see.
+    func decoded(_ value: Double, source: CaptureSource) -> Double {
+        let v = Color.decode(min(1, max(0, value)))
+        switch source {
+        case .phone: return Color.recoverShoulder(SIMD3(repeating: v), amount: shoulderRecovery).x
+        case .raw: return v * CaptureSource.rawHeadroom
+        }
     }
 
     /// RGBA Float32 cube data for `CIColorCubeWithColorSpace`, red changing fastest.
-    func cubeData(size: Int) -> Data {
-        let prepared = Prepared(self)
+    func cubeData(size: Int, source: CaptureSource = .phone, white: Double? = nil) -> Data {
+        let prepared = Prepared(self, source: source, white: white)
         var rgba: [Float] = []
         rgba.reserveCapacity(size * size * size * 4)
         let step = Double(size - 1)
@@ -87,11 +103,13 @@ extension LookSpec {
     /// The spec with its curves solved, so the cube's 36,000 samples don't each re-solve them.
     struct Prepared {
         let spec: LookSpec
+        let source: CaptureSource
         let curves: [Curve]
 
-        init(_ spec: LookSpec) {
+        init(_ spec: LookSpec, source: CaptureSource = .phone, white: Double? = nil) {
             self.spec = spec
-            let headroom = 1 + spec.shoulderRecovery
+            self.source = source
+            let headroom = white ?? spec.fullWhite(for: source)
             if spec.monoWeights != nil {
                 curves = [Curve(steepness: spec.contrast.x, offset: 0, headroom: headroom)]
             } else {
@@ -102,7 +120,10 @@ extension LookSpec {
         func apply(_ input: SIMD3<Double>) -> SIMD3<Double> {
             // 1–2. Scene-ish linear light.
             var linear = Color.decode(input.clamped(lowerBound: .zero, upperBound: .one))
-            linear = Color.recoverShoulder(linear, amount: spec.shoulderRecovery)
+            switch source {
+            case .phone: linear = Color.recoverShoulder(linear, amount: spec.shoulderRecovery)
+            case .raw: linear *= CaptureSource.rawHeadroom
+            }
             linear *= spec.channelGain * pow(2, spec.exposure)
 
             // 3. Characteristic curves; their output is display-encoded.

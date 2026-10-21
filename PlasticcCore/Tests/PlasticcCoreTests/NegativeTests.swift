@@ -17,7 +17,7 @@ final class NegativeTests: XCTestCase {
     }
 
     func testColourFilmSitsOnAnOrangeMask() {
-        let mid = negative(0.5, .portra800)
+        let mid = negative(0.5, .portra400)
         XCTAssertGreaterThan(mid.r, mid.g + 20)
         XCTAssertGreaterThan(mid.g, mid.b + 10)
     }

@@ -109,8 +109,9 @@ final class RollModel {
         // A flash that hasn't finished charging doesn't fire, like the real thing.
         let fire = flashState == .ready
         do {
-            let jpeg = try await camera.capture(flash: fire)
-            try store.shoot(jpeg, flash: fire)
+            let capture = try await camera.capture(flash: fire)
+            try store.shoot(capture.data, flash: fire, source: capture.source, sceneEV100: capture.sceneEV100,
+                            fileExtension: capture.fileExtension)
             shotCount += 1
             // Recharge, unless the switch went off meanwhile or that was the last frame.
             if fire, flashState != .off, store.current?.phase == .shooting { charge() }
@@ -129,10 +130,13 @@ final class RollModel {
         guard let roll, roll.phase == .loaded || roll.phase == .shooting, !isCapturing else { return }
         isCapturing = true
         defer { isCapturing = false }
-        guard let jpeg = try? await camera.capture(flash: false) else { return }
+        guard let capture = try? await camera.capture(flash: false) else { return }
         while store.current?.phase == .loaded || store.current?.phase == .shooting {
             if store.current?.wound == false { try? store.wind() }
-            do { try store.shoot(jpeg, flash: false) } catch { break }
+            do {
+                try store.shoot(capture.data, flash: false, source: capture.source, sceneEV100: capture.sceneEV100,
+                                fileExtension: capture.fileExtension)
+            } catch { break }
         }
         self.roll = store.current
     }

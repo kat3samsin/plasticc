@@ -137,8 +137,9 @@ final class RollTests: XCTestCase {
     }
 
     func testFilmsAreTheThreeStocks() {
-        XCTAssertEqual(FilmStock.all.map(\.id), ["superia400", "portra800", "hp5"])
-        XCTAssertEqual(FilmStock.with(id: "portra800"), .portra800)
+        XCTAssertEqual(FilmStock.all.map(\.id), ["superia400", "portra400", "ektar100", "hp5"])
+        XCTAssertEqual(FilmStock.with(id: "portra400"), .portra400)
         XCTAssertNil(FilmStock.with(id: "gold200"))
+        XCTAssertEqual(FilmStock.with(id: "portra800"), .portra400, "old Portra 800 rolls develop as Portra 400")
     }
 }
