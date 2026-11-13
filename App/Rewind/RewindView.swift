@@ -34,12 +34,12 @@ struct RewindView: View {
             VStack(spacing: 22) {
                 VStack(spacing: 6) {
                     Text(title)
-                        .font(.print(28))
+                        .font(.print(26))
                         .italic()
                         .swaps(on: title)
                     Text(instruction)
                         .font(.print(15, weight: .bold))
-                        .opacity(0.85)
+                        .opacity(0.8)
                         .swaps(on: instruction)
                 }
                 .foregroundStyle(Plastic.trim)
@@ -76,8 +76,9 @@ struct RewindView: View {
                     .trim(from: 0.05, to: 0.82)
                     .stroke(Plastic.trim.opacity(0.35), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [2, 9]))
                     .frame(width: 300, height: 300)
-                    .rotationEffect(.degrees(hint && crank.angle == 0 ? 360 : 0))
-                    .opacity(released ? 0 : 1)
+                    .rotationEffect(.degrees(hint ? 360 : 0))
+                    .opacity(released || crank.angle > 0 ? 0 : 1)
+                    .animation(.easeOut(duration: 0.25), value: crank.angle > 0)
                 // Film left on the spool, as a ring that empties.
                 Circle()
                     .trim(from: 0, to: 1 - crank.progress)
@@ -283,13 +284,18 @@ private struct CrankKnob: View {
             Circle()
                 .fill(RadialGradient(colors: [Color(white: 0.32), Color(white: 0.1)], center: .init(x: 0.4, y: 0.35), startRadius: 4, endRadius: 130))
                 .overlay(
-                    ForEach(0..<36, id: \.self) { i in
-                        Capsule()
-                            .fill(.black.opacity(0.45))
-                            .frame(width: 3, height: 12)
-                            .offset(y: -104)
-                            .rotationEffect(.degrees(Double(i) * 10))
+                    // The ribbed rim turns with the arm, so the whole knob reads as spinning.
+                    ZStack {
+                        ForEach(0..<36, id: \.self) { i in
+                            Capsule()
+                                .fill(.black.opacity(0.45))
+                                .frame(width: 3, height: 12)
+                                .offset(y: -104)
+                                .rotationEffect(.degrees(Double(i) * 10))
+                        }
                     }
+                    .drawingGroup()
+                    .rotationEffect(.radians(angle))
                 )
                 .overlay(Circle().strokeBorder(.white.opacity(0.1), lineWidth: 2).padding(18))
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 6)

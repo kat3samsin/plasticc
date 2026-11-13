@@ -72,23 +72,32 @@ final class FilmEngineTests: XCTestCase {
         XCTAssertGreaterThan(level(CIColor(red: 0.2, green: 0.2, blue: 0.8)), level(CIColor(red: 0.2, green: 0.2, blue: 0.2)))
     }
 
-    func testPortraWarmsAGreyAndSuperiaDoesNot() {
+    func testPortraKeepsAGreyNearNeutralAndWarmerThanSuperia() {
         let center = CGRect(x: 150, y: 250, width: 100, height: 100)
         let grey = TestImages.solid(CIColor(red: 0.5, green: 0.5, blue: 0.5), width: 400, height: 600)
         let portra = PixelReader.average(develop(grey, .portra400), in: center)
         let superia = PixelReader.average(develop(grey, .superia400), in: center)
-        XCTAssertGreaterThan(portra.r - portra.b, 8)
-        XCTAssertGreaterThan(portra.r - portra.b, superia.r - superia.b + 5)
+        // The LC-A scans' greys sit within a few levels of neutral, a touch warm.
+        XCTAssertGreaterThan(portra.r - portra.b, 0)
+        XCTAssertLessThan(portra.r - portra.b, 8)
+        XCTAssertGreaterThan(portra.r - portra.b, superia.r - superia.b + 2)
     }
 
-    func testVignetteDarkensTheCorners() {
-        let flat = TestImages.solid(CIColor(red: 0.6, green: 0.6, blue: 0.6), width: 400, height: 600)
-        let out = develop(flat, .superia400)
-        let corner = PixelReader.average(out, in: CGRect(x: 0, y: 0, width: 40, height: 40)).g
-        let center = PixelReader.average(out, in: CGRect(x: 180, y: 280, width: 40, height: 40)).g
-        // A very light vignette: the corners only just darker.
-        XCTAssertLessThan(corner, center - 4)
+    func testPortraVignettesMoreInSunlight() {
+        let grey = TestImages.solid(CIColor(red: 0.5, green: 0.5, blue: 0.5), width: 400, height: 600)
+        let mid = CGRect(x: 170, y: 270, width: 60, height: 60), corner = CGRect(x: 0, y: 0, width: 40, height: 40)
+        func cornerDrop(_ film: FilmStock, sunlight: Double) -> Double {
+            let print = engine.develop(grey, film: film, seed: quietSeed(film), frameIndex: 5, flash: false, date: nil, sunlight: sunlight)
+            return PixelReader.average(print, in: mid).g - PixelReader.average(print, in: corner).g
+        }
+        XCTAssertGreaterThan(cornerDrop(.portra400, sunlight: 1), 15)
+        XCTAssertGreaterThan(cornerDrop(.portra400, sunlight: 1), cornerDrop(.portra400, sunlight: 0.5) + 5, "the vignette ramps with the light")
+        // Every film has the lens's light vignette; only Portra deepens it in the sun.
+        XCTAssertGreaterThan(cornerDrop(.portra400, sunlight: 0), 3, "a light vignette indoors")
+        XCTAssertGreaterThan(cornerDrop(.portra400, sunlight: 1), cornerDrop(.portra400, sunlight: 0) + 8)
+        XCTAssertEqual(cornerDrop(.superia400, sunlight: 1), cornerDrop(.superia400, sunlight: 0), accuracy: 2, "Portra only")
     }
+
 
     func testFlashBrightensTheMiddleMoreThanTheEdges() {
         let dim = TestImages.solid(CIColor(red: 0.15, green: 0.15, blue: 0.15), width: 400, height: 600)
@@ -154,24 +163,33 @@ final class DisposableExposureTests: XCTestCase {
         // Bright overcast to sun, EV 12–15: negative film soaks it up.
         for ev in [11.3, 12.0, 15.0] {
             let stops = FilmEngine.disposableExposure(sceneEV100: ev, flash: false)
-            XCTAssertEqual(stops, -0.5)
+            XCTAssertEqual(stops, 0)
         }
     }
 
     func testIndoorsWithoutFlashGoesDark() {
-        // A lit room is about EV 7.
-        XCTAssertLessThan(FilmEngine.disposableExposure(sceneEV100: 7, flash: false), -1.5)
+        // A lit room is about EV 7: darker than daylight, but rescued to about a stop under.
+        let stops = FilmEngine.disposableExposure(sceneEV100: 7, flash: false)
+        XCTAssertLessThan(stops, -1)
+        XCTAssertGreaterThan(stops, -1.6)
     }
 
     func testFlashRescuesADimRoom() {
         let without = FilmEngine.disposableExposure(sceneEV100: 6, flash: false)
         let with = FilmEngine.disposableExposure(sceneEV100: 6, flash: true)
         XCTAssertGreaterThan(with, without + 1.5)
-        XCTAssertGreaterThanOrEqual(with, -0.9)
+        XCTAssertGreaterThanOrEqual(with, -0.4)
     }
 
     func testNeverDarkerThanTheScannerCanPrint() {
         XCTAssertEqual(FilmEngine.disposableExposure(sceneEV100: -2, flash: false), -2.6)
+    }
+
+    func testSunlightRampsFromABrightRoomToFullSun() {
+        XCTAssertEqual(FilmEngine.sunlight(sceneEV100: nil), 0)
+        XCTAssertEqual(FilmEngine.sunlight(sceneEV100: 8.5), 0, "a lit room")
+        XCTAssertEqual(FilmEngine.sunlight(sceneEV100: 12), 0.5, accuracy: 0.001, "bright overcast")
+        XCTAssertEqual(FilmEngine.sunlight(sceneEV100: 15), 1, "full sun")
     }
 
     func testDarkerExposureMeansMoreGrain() {
@@ -218,9 +236,9 @@ final class GrainStrengthTests: XCTestCase {
         let patch = TestImages.solid(CIColor(red: level, green: level, blue: level), width: size.width, height: size.height)
         let plain = FilmStock(id: film.id, name: film.name, look: film.look,
                           grain: .init(rms: 0, size: film.grain.size, chroma: 0, underexposure: 0),
-                          halation: film.halation, leakTones: film.leakTones, leakChance: 0, vignette: film.vignette, softness: film.softness)
+                          halation: film.halation, leakTones: film.leakTones, leakChance: 0, vignette: film.vignette, softness: film.softness, dust: false)
         let quiet = FilmStock(id: film.id, name: film.name, look: film.look, grain: film.grain,
-                          halation: film.halation, leakTones: film.leakTones, leakChance: 0, vignette: film.vignette, softness: film.softness)
+                          halation: film.halation, leakTones: film.leakTones, leakChance: 0, vignette: film.vignette, softness: film.softness, dust: false)
         let middle = CGRect(x: 900, y: 1400, width: 256, height: 256)
         let a = PixelReader.rgba(engine.develop(patch, film: quiet, seed: 5, frameIndex: 9, flash: false, date: nil).cropped(to: middle))
         let b = PixelReader.rgba(engine.develop(patch, film: plain, seed: 5, frameIndex: 9, flash: false, date: nil).cropped(to: middle))
@@ -242,6 +260,17 @@ final class GrainStrengthTests: XCTestCase {
     }
 }
 
+final class DateStampVisibilityTests: XCTestCase {
+    func testStampShowsRedOnAWhiteWall() {
+        let white = TestImages.solid(CIColor(red: 0.95, green: 0.95, blue: 0.95), width: 400, height: 600)
+        let date = Date(timeIntervalSince1970: 1_790_000_000)
+        let stamped = DateStamp.apply(to: white, date: date, seed: 1)
+        let px = PixelReader.rgba(stamped.cropped(to: CGRect(x: 10, y: 30, width: 40, height: 180)))
+        let reddest = stride(from: 0, to: px.count, by: 4).map { Int(px[$0]) - Int(px[$0 + 2]) }.max() ?? 0
+        XCTAssertGreaterThan(reddest, 60, "the digits read as red-orange, not white on white")
+    }
+}
+
 final class DustTests: XCTestCase {
     func testDustIsFaintFewAndRepeatable() {
         let grey = TestImages.solid(CIColor(red: 0.4, green: 0.4, blue: 0.4), width: 600, height: 900)
@@ -252,15 +281,38 @@ final class DustTests: XCTestCase {
         XCTAssertGreaterThan(marked, 0)
         XCTAssertLessThan(Double(marked) / Double(a.count / 4), 0.004, "a few specks, not a haze")
     }
+
+    func testEveryFilmPicksUpDust() {
+        XCTAssertEqual(FilmStock.all.filter(\.dust).count, FilmStock.all.count)
+    }
 }
 
-final class DateStampVisibilityTests: XCTestCase {
-    func testStampShowsRedOnAWhiteWall() {
-        let white = TestImages.solid(CIColor(red: 0.95, green: 0.95, blue: 0.95), width: 400, height: 600)
-        let date = Date(timeIntervalSince1970: 1_790_000_000)
-        let stamped = DateStamp.apply(to: white, date: date, seed: 1)
-        let px = PixelReader.rgba(stamped.cropped(to: CGRect(x: 10, y: 30, width: 40, height: 180)))
-        let reddest = stride(from: 0, to: px.count, by: 4).map { Int(px[$0]) - Int(px[$0 + 2]) }.max() ?? 0
-        XCTAssertGreaterThan(reddest, 60, "the digits read as red-orange, not white on white")
+final class GlowTests: XCTestCase {
+    func testGlowSpillsLightAroundABrightPatchAndLeavesDarkAreasDark() {
+        let engine = FilmEngine()
+        let dark = TestImages.solid(CIColor(red: 0.08, green: 0.08, blue: 0.08), width: 400, height: 600)
+        let lamp = TestImages.solid(.white, width: 60, height: 60).transformed(by: CGAffineTransform(translationX: 170, y: 270))
+        let scene = lamp.composited(over: dark)
+        func render(_ glow: Bool) -> CIImage {
+            engine.develop(scene, film: .superia400, seed: 9, frameIndex: 9, flash: false, date: nil, glow: glow)
+        }
+        let near = CGRect(x: 240, y: 290, width: 20, height: 20), far = CGRect(x: 10, y: 10, width: 20, height: 20)
+        XCTAssertGreaterThan(PixelReader.average(render(true), in: near).g, PixelReader.average(render(false), in: near).g + 8)
+        XCTAssertEqual(PixelReader.average(render(true), in: far).g, PixelReader.average(render(false), in: far).g, accuracy: 3)
+    }
+}
+
+final class LightLeakSettingTests: XCTestCase {
+    func testTurningLeaksOffGivesTheSameFrameWithoutTheLeak() {
+        let engine = FilmEngine()
+        let film = FilmStock.superia400
+        let dark = TestImages.solid(CIColor(red: 0.1, green: 0.1, blue: 0.1), width: 120, height: 180)
+        var seed: UInt64 = 1
+        while !FilmEngine.leakFires(film: film, seed: seed, frameIndex: 9) { seed += 1 }
+        func red(_ leaks: Bool) -> Double {
+            PixelReader.average(engine.develop(dark, film: film, seed: seed, frameIndex: 9, flash: false, date: nil, leaks: leaks),
+                                in: CGRect(x: 0, y: 0, width: 120, height: 180)).r
+        }
+        XCTAssertGreaterThan(red(true), red(false) + 3)
     }
 }

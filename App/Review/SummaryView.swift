@@ -24,10 +24,14 @@ struct SummaryView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Paper.fadedInk)
                     .padding(.horizontal, 30)
+                // The film's name on a sticker in its box colours, so it reads on cream whatever the film.
                 Text(finished.film.name.uppercased())
                     .font(.print(11))
                     .tracking(2)
-                    .foregroundStyle(finished.film.brand.band)
+                    .foregroundStyle(finished.film.brand.bandInk)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(finished.film.brand.band, in: Capsule())
                 Text("Your Snappy 35 is empty and ready for the next roll.")
                     .font(.typed(14))
                     .multilineTextAlignment(.center)
@@ -35,19 +39,13 @@ struct SummaryView: View {
                     .padding(.horizontal, 40)
                     .padding(.top, 10)
                 Spacer()
-                Button {
+                Button("Buy another roll") {
                     Feel.shared.click()
                     model.nextRoll()
-                } label: {
-                    Text("Buy another roll")
-                        .font(.print(18, weight: .heavy))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Paper.ink, in: Capsule())
-                        .foregroundStyle(Paper.cream)
                 }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 30)
+                .buttonStyle(PaperButtonStyle())
+                .padding(.horizontal, Layout.margin)
+                .padding(.bottom, Layout.buttonInset)
             }
         }
     }

@@ -2,11 +2,18 @@ import Foundation
 import PlasticcCore
 import UserNotifications
 
-/// The three things you can set. Stored in UserDefaults, read with `@AppStorage` keys below.
+/// The things you can set. Stored in UserDefaults, read with `@AppStorage` keys below.
 enum Settings {
     static let developTimeKey = "developTime"
     static let dateStampKey = "dateStamp"
     static let soundsKey = Feel.soundsKey
+    static let quickLoadKey = "quickLoad"
+    static let quickDevelopKey = "quickDevelop"
+    static let glowKey = "glow"
+    static let lightLeaksKey = "lightLeaks"
+    /// The film last bought, so the shop opens on it.
+    static let lastFilmKey = "lastFilm"
+    static let printFormatKey = "printFormat"
 
     static var developTime: DevelopTime {
         UserDefaults.standard.string(forKey: developTimeKey).flatMap(DevelopTime.init) ?? .hour
@@ -14,6 +21,31 @@ enum Settings {
 
     static var dateStamp: Bool {
         UserDefaults.standard.object(forKey: dateStampKey) as? Bool ?? true
+    }
+
+    /// Skip the rewind crank and the lab: the last frame goes straight to the darkroom.
+    static var quickDevelop: Bool {
+        UserDefaults.standard.bool(forKey: quickDevelopKey)
+    }
+
+    /// A soft bloom around highlights, like a diffusion filter. Off by default.
+    static var glow: Bool {
+        UserDefaults.standard.bool(forKey: glowKey)
+    }
+
+    /// Random light leaks on some frames, more on the first two. On by default.
+    static var lightLeaks: Bool {
+        UserDefaults.standard.object(forKey: lightLeaksKey) as? Bool ?? true
+    }
+
+    /// The print's shape. 35 mm's 3:2 by default.
+    static var printFormat: PrintFormat {
+        UserDefaults.standard.string(forKey: printFormatKey).flatMap(PrintFormat.init) ?? .classic
+    }
+
+    /// Skip opening the box and loading the camera: a bought roll goes straight in, ready to shoot.
+    static var quickLoad: Bool {
+        UserDefaults.standard.bool(forKey: quickLoadKey)
     }
 }
 

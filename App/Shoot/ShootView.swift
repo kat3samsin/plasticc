@@ -1,3 +1,4 @@
+import AVKit
 import PlasticcCore
 import SwiftUI
 
@@ -21,10 +22,15 @@ struct ShootView: View {
                     .frame(maxHeight: 360)
 
                 HStack(alignment: .bottom) {
-                    FlashSwitch(state: model.flashState, ink: Plastic.trim) { model.setFlash($0) }
+                    VStack(alignment: .leading, spacing: 12) {
+                        FlashSwitch(state: model.flashState, ink: Plastic.trim) { model.setFlash($0) }
+                        MultiSwitch(isOn: model.multi, isEnabled: model.canFlipMulti, blockedReason: model.multiBlockedReason,
+                                    ink: Plastic.trim) { model.setMulti($0) }
+                    }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 7) {
-                        Text(canWind ? "TURN WHEEL UNTIL IT STOPS" : "READY")
+                        Text(model.isCapturing ? "SAVING…"
+                             : canWind ? (model.multi ? "TURN WHEEL TO COCK" : "TURN WHEEL UNTIL IT STOPS") : "READY")
                             .font(.print(10))
                             .tracking(1)
                             .foregroundStyle(Plastic.trim.opacity(0.9))
@@ -32,7 +38,8 @@ struct ShootView: View {
                         WindWheel(isEnabled: canWind) { model.wind() }
                     }
                 }
-                .padding(.horizontal, 6)
+                // The same inset as the header, so the flash lines up under the name and the wheel under the counter.
+                .padding(.horizontal, 4)
 
                 Spacer(minLength: 0)
 
@@ -55,11 +62,30 @@ struct ShootView: View {
             if phase == .active, model.cameraAllowed == false { Task { await model.startCamera() } }
         }
         .onDisappear { model.stopCamera() }
-        .onChange(of: model.shotCount) {
+        // The volume buttons and Camera Control fire the shutter too, on release, like the button on screen.
+        .onCameraCaptureEvent { event in
+            guard event.phase == .ended else { return }
+            pressShutter()
+        }
+        // The shutter blinks the finder the moment it fires, not when the phone has finished saving the photo.
+        .onChange(of: model.isCapturing) { _, capturing in
+            guard capturing else { return }
             blink = true
             withAnimation(.easeOut(duration: 0.3).delay(0.08)) { blink = false }
         }
         .animation(.easeInOut(duration: 0.2), value: canWind)
+        .animation(.easeInOut(duration: 0.25), value: model.multi)
+        .animation(.easeOut(duration: 0.15), value: model.isCapturing)
+    }
+
+    /// The shutter pressed from a hardware button: a shot if the film is wound, the dead stop if not.
+    private func pressShutter() {
+        guard roll?.wound == true, !model.isCapturing else {
+            Feel.shared.locked()
+            return
+        }
+        Feel.shared.shutter()
+        Task { if await !model.shoot() { Feel.shared.dud() } }
     }
 
     private var header: some View {
@@ -81,6 +107,8 @@ struct ShootView: View {
                 FilmWindow(film: model.film)
             }
             Spacer()
+            SelfieSwitch(isOn: model.isFront, ink: Plastic.trim) { model.setFront($0) }
+                .padding(.trailing, 14)
             CounterDisc(remaining: roll?.remaining ?? 0)
                 #if DEBUG
                 // Hold the counter to fill the rest of the roll (debug builds only).

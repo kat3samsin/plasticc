@@ -15,7 +15,8 @@ struct PermissionView: View {
                 UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Plastic.body)
+            // The body colour vanished against the body; the Snappy's orange reads.
+            .tint(Plastic.accent)
         }
         .foregroundStyle(Plastic.trim)
         .padding(24)

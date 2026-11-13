@@ -38,7 +38,7 @@ final class Feel {
         play("wind_tick", variants: 3, volume: Float(0.6 + 0.4 * tension))
     }
 
-    /// The wheel locks on the next frame: a hard clack, then the shutter spring cocking a beat later.
+    /// The wheel locks on the next frame: the shutter cocks with a small click, then the wheel stops dead.
     func windStop() {
         prepareIfNeeded()
         play("wind_stop")
@@ -111,10 +111,12 @@ final class Feel {
 
     // MARK: - Rewind
 
+    /// One fine click of the crank's ratchet: light and quick, so a fast turn feels like a smooth purr.
     func crankTick(intensity: Double) {
         prepareIfNeeded()
-        rigid.impactOccurred(intensity: CGFloat(0.25 + 0.6 * intensity))
-        play("crank_tick", variants: 3, volume: Float(0.5 + 0.5 * intensity))
+        light.impactOccurred(intensity: CGFloat(0.3 + 0.45 * intensity))
+        light.prepare()
+        play("crank_tick", variants: 3, volume: Float(0.35 + 0.4 * intensity))
     }
 
     /// The leader slips off the spool: a short slack rumble, then a hollow tap.

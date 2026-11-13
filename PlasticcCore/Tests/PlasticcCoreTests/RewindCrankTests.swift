@@ -18,9 +18,9 @@ final class RewindCrankTests: XCTestCase {
     }
 
     func testLongerRollsTakeMoreTurns() {
-        XCTAssertEqual(RewindCrank(exposures: 12).totalAngle, 3 * 2 * .pi, accuracy: 1e-9)
-        XCTAssertEqual(RewindCrank(exposures: 24).totalAngle, 4 * 2 * .pi, accuracy: 1e-9)
-        XCTAssertEqual(RewindCrank(exposures: 36).totalAngle, 5 * 2 * .pi, accuracy: 1e-9)
+        XCTAssertEqual(RewindCrank(exposures: 12).totalAngle, 1.5 * 2 * .pi, accuracy: 1e-9)
+        XCTAssertEqual(RewindCrank(exposures: 24).totalAngle, 2 * 2 * .pi, accuracy: 1e-9)
+        XCTAssertEqual(RewindCrank(exposures: 36).totalAngle, 2.5 * 2 * .pi, accuracy: 1e-9)
     }
 
     func testReleasesOnceAtTheEndAndThenGoesQuiet() {
@@ -42,8 +42,8 @@ final class RewindCrankTests: XCTestCase {
             }
         }
         let gaps = zip(tickAngles.dropFirst(), tickAngles).map { $0 - $1 }
-        XCTAssertGreaterThan(gaps.first!, 35 * degree)
-        XCTAssertLessThan(gaps.last!, 20 * degree)
+        XCTAssertGreaterThan(gaps.first!, 18 * degree)
+        XCTAssertLessThan(gaps.last!, 12 * degree)
 
         var fresh = RewindCrank(exposures: 24)
         let levels = intensities(crankAll(&fresh))
@@ -61,7 +61,7 @@ final class RewindCrankTests: XCTestCase {
     func testOneBigJumpStillTicksEveryClick() {
         var crank = RewindCrank(exposures: 12)
         let events = crank.turn(by: 90 * degree)
-        XCTAssertEqual(events.count, 2) // clicks at about 40° and 80°
+        XCTAssertEqual(events.count, 4) // clicks at about 20°, 40°, 60° and 80°
         XCTAssertFalse(crank.isDone)
     }
 }

@@ -19,7 +19,8 @@ public struct RewindCrank: Sendable {
     public var progress: Double { min(1, angle / totalAngle) }
 
     public init(exposures: Int) {
-        totalAngle = Double(2 + exposures / 12) * 2 * .pi
+        // Half the turns of a real rewind crank, so it never drags: 1½ turns for 12 frames, 2½ for 36.
+        totalAngle = Double(2 + exposures / 12) * .pi
         nextTick = Self.spacing(atProgress: 0)
     }
 
@@ -40,8 +41,8 @@ public struct RewindCrank: Sendable {
         return events
     }
 
-    /// 40° between clicks on a full spool, narrowing to 15° near the end.
+    /// 20° between clicks on a full spool, narrowing to 10° near the end: a fine, smooth ratchet.
     static func spacing(atProgress progress: Double) -> Double {
-        (40 - 25 * progress) * .pi / 180
+        (20 - 10 * progress) * .pi / 180
     }
 }

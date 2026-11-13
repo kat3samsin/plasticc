@@ -7,7 +7,7 @@ enum CameraError: Error { case notReady, noImage }
 
 /// The back wide camera, fixed like a disposable's lens: auto focus and exposure, flash on or off, nothing else.
 /// Frames are the iPhone's own photo at the sensor's full resolution (48 MP on recent iPhones), which the lab
-/// downsamples to a 24 MP print.
+/// downsamples to a 10 MP print.
 final class LiveCamera: NSObject, @unchecked Sendable {
     let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "plasticc.session")
@@ -18,6 +18,8 @@ final class LiveCamera: NSObject, @unchecked Sendable {
     private var rotation: AVCaptureDevice.RotationCoordinator?
     /// The largest photo the camera can take; session queue only.
     private var fullSize: CMVideoDimensions?
+    /// Which camera is in use; session queue only.
+    private var position: AVCaptureDevice.Position = .back
 
     private struct Pending {
         let continuation: CheckedContinuation<Capture, Error>
@@ -75,18 +77,35 @@ final class LiveCamera: NSObject, @unchecked Sendable {
     private func configure() {
         session.beginConfiguration()
         session.sessionPreset = .photo
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-           let input = try? AVCaptureDeviceInput(device: device),
-           session.canAddInput(input) {
-            session.addInput(input)
-            rotation = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
-            fullSize = device.activeFormat.supportedMaxPhotoDimensions.max { $0.width * $0.height < $1.width * $1.height }
-        }
+        useCamera(at: position)
         if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
         if let fullSize { photoOutput.maxPhotoDimensions = fullSize }
         photoOutput.maxPhotoQualityPrioritization = .balanced
         session.commitConfiguration()
         log.info("Camera ready at \(self.fullSize.map { "\($0.width)×\($0.height)" } ?? "default size")")
+    }
+
+    /// Swaps between the back camera and the selfie camera.
+    func setFront(_ front: Bool) {
+        sessionQueue.async { [self] in
+            position = front ? .front : .back
+            guard isConfigured else { return }
+            session.beginConfiguration()
+            useCamera(at: position)
+            if let fullSize { photoOutput.maxPhotoDimensions = fullSize }
+            session.commitConfiguration()
+        }
+    }
+
+    /// Session queue only, inside a configuration.
+    private func useCamera(at position: AVCaptureDevice.Position) {
+        for input in session.inputs { session.removeInput(input) }
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input) else { return }
+        session.addInput(input)
+        rotation = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        fullSize = device.activeFormat.supportedMaxPhotoDimensions.max { $0.width * $0.height < $1.width * $1.height }
     }
 
     private func finish(_ id: Int64, with result: (String) -> Result<Capture, Error>) {

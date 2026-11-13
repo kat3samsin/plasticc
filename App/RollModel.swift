@@ -14,6 +14,8 @@ final class RollModel {
     private(set) var roll: Roll?
     private(set) var flashState: FlashState = .off
     private(set) var isCapturing = false
+    /// True while the selfie camera is in use.
+    private(set) var isFront = false
     /// Bumped on every shot, so the finder can blink.
     private(set) var shotCount = 0
     /// Nil until the camera has been asked for; false when access is denied.
@@ -53,14 +55,41 @@ final class RollModel {
 
     var film: FilmStock? { roll.flatMap { FilmStock.with(id: $0.filmID) } }
 
-    func start(film: FilmStock, length: RollLength) { perform { try store.start(film: film, length: length) } }
+    func start(film: FilmStock, length: RollLength) {
+        perform {
+            try store.start(film: film, length: length)
+            // Quick load: the box opened and the film threaded off screen.
+            if Settings.quickLoad {
+                try store.tear()
+                try store.load()
+            }
+        }
+    }
     func tear() { perform { try store.tear() } }
     func load() { perform { try store.load() } }
     func wind() { perform { try store.wind() } }
 
+    /// MULTI: the next wind cocks the shutter without moving the film, so the next shot lands on the same frame.
+    var multi: Bool { roll?.multi ?? false }
+    /// Whether the MULTI switch can flip now; not while a shot is still being taken.
+    var canFlipMulti: Bool {
+        guard let roll, !isCapturing else { return false }
+        return roll.canSetMulti(!roll.multi)
+    }
+    func setMulti(_ on: Bool) { perform { try store.setMulti(on) } }
+    /// Why MULTI can't flip right now, in the words the camera shows; nil when it can.
+    var multiBlockedReason: String? {
+        guard let roll, !canFlipMulti else { return nil }
+        if isCapturing { return nil }
+        if roll.wound { return roll.multi ? "ALREADY COCKED: TAKE THE SHOT" : "PRESS MULTI BEFORE WINDING" }
+        if roll.shots.isEmpty { return "TAKE A SHOT FIRST" }
+        if roll.shots.last?.second != nil { return "THIS FRAME HAS TWO ALREADY" }
+        return nil
+    }
+
     /// The film's in the canister: off to the lab, ready after the develop time you've set.
     func rewind() {
-        let readyAt = Settings.developTime.readyAt(from: Date())
+        let readyAt = Settings.quickDevelop ? Date() : Settings.developTime.readyAt(from: Date())
         perform { try store.rewind(readyAt: readyAt) }
         if let roll, let film, readyAt > Date() {
             Task { await LabNotice.schedule(at: readyAt, film: film.name, exposures: roll.length.exposures) }
@@ -77,6 +106,11 @@ final class RollModel {
         // A real flash would stay charged, but a new screen starts with the switch off and quiet.
         flashState = .off
         Feel.shared.flashCancel()
+    }
+
+    func setFront(_ front: Bool) {
+        isFront = front
+        camera.setFront(front)
     }
 
     func setFlash(_ on: Bool) {
@@ -116,6 +150,7 @@ final class RollModel {
             // Recharge, unless the switch went off meanwhile or that was the last frame.
             if fire, flashState != .off, store.current?.phase == .shooting { charge() }
             roll = store.current
+            developIfQuick()
             return true
         } catch {
             log.error("Shot failed: \(String(describing: error))")
@@ -139,10 +174,18 @@ final class RollModel {
             } catch { break }
         }
         self.roll = store.current
+        developIfQuick()
     }
     #endif
 
     // MARK: - Lab
+
+    /// Quick develop: the last frame goes straight to the darkroom, skipping the crank and the lab envelope.
+    private func developIfQuick() {
+        guard Settings.quickDevelop, roll?.phase == .rewinding else { return }
+        rewind()
+        Task { await develop() }
+    }
 
     var developedCount: Int { roll?.shots.filter { $0.developedFile != nil }.count ?? 0 }
 
@@ -167,6 +210,9 @@ final class RollModel {
             }
         }
         let stamp = Settings.dateStamp
+        let glow = Settings.glow
+        let leaks = Settings.lightLeaks
+        let format = Settings.printFormat
         let developer = developer
         for (index, shot) in roll.shots.enumerated() where shot.developedFile == nil {
             let original = store.url(for: shot.file)
@@ -174,9 +220,9 @@ final class RollModel {
             let result = await Task.detached(priority: .userInitiated) { () -> (Data, CGImage)? in
                 // A frame the lab can't grade still comes back, as the plain photo, as long as it's a real picture.
                 // And a frame whose photo is lost comes back blank, as a real lab would hand it back.
-                let candidates = [{ try? developer.develop(original: original, film: film, shot: shot, frameIndex: index, dateStamp: stamp) },
+                let candidates = [{ try? developer.develop(original: original, film: film, shot: shot, frameIndex: index, dateStamp: stamp, glow: glow, leaks: leaks, format: format) },
                                   { try? Data(contentsOf: original) },
-                                  { try? developer.blankPrint(film: film, shot: shot, frameIndex: index) }]
+                                  { try? developer.blankPrint(film: film, shot: shot, frameIndex: index, format: format) }]
                 for make in candidates {
                     if let data = make(), let thumb = Thumbnail.make(from: data, maxPixel: 720) { return (data, thumb) }
                 }

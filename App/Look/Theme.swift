@@ -30,9 +30,64 @@ enum Paper {
     static let safelight = Color(red: 0.42, green: 0.04, blue: 0.03)
 }
 
+/// Measurements shared by every screen, so controls and margins line up from one to the next.
+enum Layout {
+    /// The margin paper screens keep from the screen's edge.
+    static let margin: CGFloat = 24
+    /// The smallest comfortable tap target.
+    static let tap: CGFloat = 44
+    /// How far the big button sits above the bottom safe area.
+    static let buttonInset: CGFloat = 16
+}
+
+/// The big capsule button on paper: the shop counter, the lab, the end of a roll.
+struct PaperButtonStyle: ButtonStyle {
+    var fill = Paper.ink
+    var ink = Paper.cream
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.print(19, weight: .heavy))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 17)
+            .background(fill, in: Capsule())
+            .foregroundStyle(ink)
+            .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// A switch on the lab order form. Its track stays visible when it's off, which the system one doesn't on cream.
+struct PaperToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 14) {
+                configuration.label
+                Spacer(minLength: 12)
+                Capsule()
+                    .fill(configuration.isOn ? Paper.stampRed : Paper.ink.opacity(0.18))
+                    .frame(width: 51, height: 31)
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(.white)
+                            .padding(2)
+                            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    }
+                    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isOn)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(configuration.isOn ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
+    }
+}
+
 /// How a film's box and canister are printed.
 struct FilmBrand {
-    let maker: String
     let line: String
     let speed: String
     let blurb: String
@@ -52,28 +107,28 @@ extension FilmStock {
     var brand: FilmBrand {
         switch id {
         case "superia400":
-            FilmBrand(maker: "FUJIFILM", line: "SUPERIA X-TRA", speed: "400",
+            FilmBrand(line: "VERDE", speed: "400",
                       blurb: "Cool and punchy. Green shadows, bright blues.",
                       process: "COLOR NEGATIVE FILM · C-41",
-                      sleeve: Color(red: 0.0, green: 0.52, blue: 0.29), band: Color(red: 0.86, green: 0.10, blue: 0.16),
-                      ink: .white, bandInk: .white)
+                      sleeve: Color(red: 0.08, green: 0.42, blue: 0.40), band: Color(red: 0.98, green: 0.52, blue: 0.40),
+                      ink: .white, bandInk: Color(red: 0.12, green: 0.08, blue: 0.06))
         case "portra400":
-            FilmBrand(maker: "KODAK", line: "PORTRA", speed: "400",
-                      blurb: "Soft and warm. Creamy, kind to skin.",
-                      process: "PROFESSIONAL COLOR NEGATIVE · C-41",
-                      sleeve: Color(red: 0.99, green: 0.74, blue: 0.04), band: Color(red: 0.82, green: 0.12, blue: 0.10),
-                      ink: Color(red: 0.12, green: 0.08, blue: 0.06), bandInk: .white)
+            FilmBrand(line: "HONEY", speed: "400",
+                      blurb: "Warm and golden, with lovely blues.",
+                      process: "PORTRAIT COLOR NEGATIVE · C-41",
+                      sleeve: Color(red: 0.96, green: 0.80, blue: 0.62), band: Color(red: 0.55, green: 0.30, blue: 0.18),
+                      ink: Color(red: 0.30, green: 0.16, blue: 0.08), bandInk: Color(red: 0.98, green: 0.93, blue: 0.84))
         case "ektar100":
-            FilmBrand(maker: "KODAK", line: "EKTAR", speed: "100",
+            FilmBrand(line: "VIVID", speed: "100",
                       blurb: "Vivid. Deep reds, rich blues, fine grain.",
-                      process: "PROFESSIONAL COLOR NEGATIVE · C-41",
-                      sleeve: Color(red: 0.78, green: 0.1, blue: 0.12), band: Color(red: 0.99, green: 0.76, blue: 0.06),
-                      ink: .white, bandInk: Color(red: 0.15, green: 0.05, blue: 0.03))
+                      process: "FINE GRAIN COLOR NEGATIVE · C-41",
+                      sleeve: Color(red: 0.14, green: 0.22, blue: 0.58), band: Color(red: 0.93, green: 0.22, blue: 0.48),
+                      ink: .white, bandInk: .white)
         default:
-            FilmBrand(maker: "ILFORD", line: "HP5 PLUS", speed: "400",
+            FilmBrand(line: "MONO", speed: "400",
                       blurb: "Black and white. Grainy, deep blacks.",
                       process: "BLACK & WHITE NEGATIVE FILM",
-                      sleeve: Color(red: 0.10, green: 0.10, blue: 0.10), band: Color(white: 0.94),
+                      sleeve: Color(red: 0.20, green: 0.20, blue: 0.22), band: Color(white: 0.70),
                       ink: .white, bandInk: Color(white: 0.08))
         }
     }

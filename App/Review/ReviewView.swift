@@ -39,7 +39,8 @@ struct ReviewView: View {
                         card(depth: depth, index: index)
                     }
                 }
-                .frame(height: 470)
+                // Room for a portrait print plus its tilted neighbours; gives way on short screens.
+                .frame(minHeight: 410, maxHeight: 470)
 
                 Spacer(minLength: 0)
 

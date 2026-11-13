@@ -33,9 +33,10 @@ final class FilmCharacterTests: XCTestCase {
     }
 
     func testSuperiaIsPunchierThanPortraButNotGaudy() {
-        // Superia pushed toward the rich colour of Lomography community scans; Portra kept soft and pastel.
+        // Superia pushed toward the rich colour of Lomography community scans; Portra matched to lab scans of
+        // Portra 400 from an LC-A, with its greens and yellows held soft.
         XCTAssertEqual(meanChroma(.superia400), 1.34, accuracy: 0.08)
-        XCTAssertEqual(meanChroma(.portra400), 0.96, accuracy: 0.08)
+        XCTAssertEqual(meanChroma(.portra400), 1.17, accuracy: 0.08)
         XCTAssertGreaterThan(meanChroma(.superia400), meanChroma(.portra400) + 0.04)
     }
 
@@ -46,10 +47,14 @@ final class FilmCharacterTests: XCTestCase {
         }
     }
 
-    func testPortraSkinLeansWarmAndItsGreensAndBluesAreSoft() {
+    func testPortraSkinLeansWarmItsGreensAreSoftAndItsSkiesLeanCyan() {
         XCTAssertGreaterThan(hueShift(.portra400, "lightSkin"), 1)
         XCTAssertLessThan(chromaRatio(.portra400, "green"), chromaRatio(.superia400, "green") - 0.1)
-        XCTAssertLessThan(chromaRatio(.portra400, "blueSky"), chromaRatio(.superia400, "blueSky"))
+        // The gentler blue rotation keeps a cyan lean without pushing the sample sky as far toward cyan.
+        // The ColorChecker sky now shifts about -5.9 degrees; full prints also include scanner levels.
+        XCTAssertGreaterThan(hueShift(.portra400, "blueSky"), -8)
+        XCTAssertLessThan(hueShift(.portra400, "blueSky"), -4)
+        XCTAssertLessThan(hueShift(.portra400, "blueSky"), hueShift(.superia400, "blueSky") - 1)
     }
 
     func testEktarIsTheMostColourful() {
@@ -62,9 +67,12 @@ final class FilmCharacterTests: XCTestCase {
         XCTAssertLessThan(abs(hueShift(.superia400, "lightSkin")), 4)
     }
 
-    func testHP5KeepsMidGreyAndOpenShadows() {
+    func testHP5KeepsMidGreyAndDeepShadows() {
         let look = FilmStock.hp5.look
         XCTAssertEqual(look.apply(SIMD3(repeating: 0.46)).x, 0.47, accuracy: 0.05)
-        XCTAssertGreaterThan(look.apply(SIMD3(repeating: 0.1)).x, 0.05, "shadows stay open, not crushed")
+        // Punchy: dark tones go deep, but still hold a little detail above black.
+        let shadow = look.apply(SIMD3(repeating: 0.1)).x
+        XCTAssertLessThan(shadow, 0.05, "deep shadows")
+        XCTAssertGreaterThan(shadow, 0.015, "not crushed to black")
     }
 }

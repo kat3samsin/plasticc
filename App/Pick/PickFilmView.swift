@@ -4,21 +4,31 @@ import SwiftUI
 /// The film counter: swipe along the shelf of film boxes, pick how many exposures, buy a roll for your camera.
 struct PickFilmView: View {
     let model: RollModel
-    @State private var filmID: String? = FilmStock.superia400.id
+    @State private var filmID: String?
     /// The last box settled in the middle; the scroll position reads nil while a swipe is settling.
-    @State private var shownID = FilmStock.superia400.id
-    @State private var length = RollLength.standard
+    @State private var shownID: String
+    @State private var length = Self.defaultLength
 
-    /// The three-shot test roll is for debug builds only.
+    /// The three-shot test roll is for debug builds only, where it's also the default.
     #if DEBUG
     private static let lengths = RollLength.allCases
+    private static let defaultLength = RollLength.test
     #else
     private static let lengths = RollLength.allCases.filter { $0 != .test }
+    private static let defaultLength = RollLength.standard
     #endif
     @State private var showSettings = false
     @State private var bought = false
 
     private var film: FilmStock { FilmStock.with(id: filmID ?? shownID) ?? .superia400 }
+
+    /// Opens on the film you bought last time.
+    init(model: RollModel) {
+        self.model = model
+        let last = UserDefaults.standard.string(forKey: Settings.lastFilmKey).flatMap(FilmStock.with)?.id ?? FilmStock.superia400.id
+        _filmID = State(initialValue: last)
+        _shownID = State(initialValue: last)
+    }
 
     var body: some View {
         ZStack {
@@ -26,7 +36,7 @@ struct PickFilmView: View {
 
             VStack(spacing: 0) {
                 header
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Layout.margin)
                     .padding(.top, 10)
 
                 ZStack(alignment: .bottom) {
@@ -60,7 +70,8 @@ struct PickFilmView: View {
                     .scrollIndicators(.hidden)
                     .scrollDisabled(bought)
                 }
-                .frame(height: 390)
+                // Gives way on short screens; the box only needs its own height plus the shelf.
+                .frame(minHeight: BoxGeometry.size.height + 26, maxHeight: 390)
                 .padding(.top, 8)
                 .onChange(of: filmID) { _, id in
                     if let id { shownID = id }
@@ -99,15 +110,10 @@ struct PickFilmView: View {
                         Image(systemName: "bag.fill")
                         Text("Buy this roll")
                     }
-                    .font(.print(19, weight: .heavy))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 17)
-                    .background(Paper.ink, in: Capsule())
-                    .foregroundStyle(Paper.cream)
-                    .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 18)
+                .buttonStyle(PaperButtonStyle())
+                .padding(.horizontal, Layout.margin)
+                .padding(.bottom, Layout.buttonInset)
                 .disabled(bought)
             }
         }
@@ -118,6 +124,7 @@ struct PickFilmView: View {
     private func buy() {
         guard !bought else { return }
         let film = film, length = length
+        UserDefaults.standard.set(film.id, forKey: Settings.lastFilmKey)
         Feel.shared.buy()
         withAnimation(.easeIn(duration: 0.5)) { bought = true }
         Task {
@@ -146,7 +153,7 @@ struct PickFilmView: View {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Paper.ink)
-                    .frame(width: 46, height: 46)
+                    .frame(width: Layout.tap, height: Layout.tap)
                     .background(.white.opacity(0.5), in: Circle())
                     .overlay(Circle().strokeBorder(Paper.ink.opacity(0.15), lineWidth: 1))
             }

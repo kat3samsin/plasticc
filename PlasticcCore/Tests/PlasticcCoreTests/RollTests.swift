@@ -136,6 +136,102 @@ final class RollTests: XCTestCase {
         XCTAssertTrue(decoded.wound)
     }
 
+    func shootDouble(_ roll: inout Roll) throws {
+        try roll.wind()
+        try roll.shoot(file: "a.jpg", takenAt: t0, flash: false, seed: 1)
+        try roll.setMulti(true)
+        try roll.wind()
+        try roll.shoot(file: "b.jpg", takenAt: t0, flash: true, seed: 2, sceneEV100: 9)
+    }
+
+    func testMultiPutsTwoExposuresOnOneFrame() throws {
+        var roll = try loadedRoll(.test)
+        try shootDouble(&roll)
+        XCTAssertEqual(roll.shots.count, 1)
+        XCTAssertEqual(roll.shots[0].second, Roll.Shot.Second(file: "b.jpg", flash: true, sceneEV100: 9))
+        XCTAssertFalse(roll.multi)
+        XCTAssertFalse(roll.wound)
+        XCTAssertEqual(roll.phase, .shooting)
+        XCTAssertEqual(roll.remaining, 2)
+    }
+
+    func testMultiWindDoesNotMoveTheFilmOn() throws {
+        var roll = try loadedRoll(.test)
+        try shoot(&roll, 1)
+        try roll.setMulti(true)
+        try roll.wind()
+        XCTAssertEqual(roll.shots.count, 1)
+        XCTAssertTrue(roll.wound)
+        XCTAssertTrue(roll.multi)
+    }
+
+    func testMultiRefusedBeforeFirstExposureAndOnFullFrame() throws {
+        var roll = try loadedRoll()
+        XCTAssertThrowsError(try roll.setMulti(true))
+        try roll.wind()
+        XCTAssertThrowsError(try roll.setMulti(true), "the shutter is armed but nothing is shot yet")
+        try roll.shoot(file: "a.jpg", takenAt: t0, flash: false, seed: 1)
+        try roll.setMulti(true)
+        try roll.wind()
+        try roll.shoot(file: "b.jpg", takenAt: t0, flash: false, seed: 2)
+        XCTAssertThrowsError(try roll.setMulti(true), "the frame already holds two exposures")
+        try roll.wind()
+        try roll.shoot(file: "c.jpg", takenAt: t0, flash: false, seed: 3)
+        XCTAssertNoThrow(try roll.setMulti(true), "the next normal frame can take a second")
+    }
+
+    func testCanSetMultiMatchesSetMulti() throws {
+        var roll = try loadedRoll()
+        XCTAssertTrue(roll.shots.isEmpty)
+        XCTAssertFalse(roll.canSetMulti(true), "no first exposure on a freshly loaded roll")
+        XCTAssertTrue(roll.canSetMulti(false))
+        try roll.wind()
+        XCTAssertFalse(roll.canSetMulti(true))
+        XCTAssertFalse(roll.canSetMulti(false), "the shutter is armed")
+        try roll.shoot(file: "a.jpg", takenAt: t0, flash: false, seed: 1)
+        XCTAssertTrue(roll.canSetMulti(true))
+    }
+
+    func testMultiCannotOutliveTheRoll() throws {
+        var roll = try loadedRoll(.test)
+        try shoot(&roll, 3)
+        XCTAssertEqual(roll.phase, .rewinding)
+        XCTAssertThrowsError(try roll.setMulti(true)) {
+            XCTAssertEqual($0 as? RollError, .wrongPhase(.rewinding))
+        }
+    }
+
+    func testMultiCanBeTurnedOffBeforeTheNextWind() throws {
+        var roll = try loadedRoll(.test)
+        try shoot(&roll, 1)
+        try roll.setMulti(true)
+        try roll.setMulti(false)
+        XCTAssertEqual(roll, try { var r = try loadedRoll(.test); try shoot(&r, 1); return r }())
+    }
+
+    func testMultiSurvivesRelaunch() throws {
+        var roll = try loadedRoll(.test)
+        try shoot(&roll, 1)
+        try roll.setMulti(true)
+        let decoded = try JSONDecoder().decode(Roll.self, from: JSONEncoder().encode(roll))
+        XCTAssertEqual(decoded, roll)
+        XCTAssertTrue(decoded.multi)
+        var double = try loadedRoll(.test)
+        try shootDouble(&double)
+        let again = try JSONDecoder().decode(Roll.self, from: JSONEncoder().encode(double))
+        XCTAssertEqual(again.shots[0].second, double.shots[0].second)
+    }
+
+    func testOldRollWithoutSecondDecodes() throws {
+        let json = """
+        {"filmID":"superia400","length":12,"phase":"shooting","wound":false,
+         "shots":[{"file":"001.jpg","takenAt":0,"flash":false,"seed":7}]}
+        """
+        let roll = try JSONDecoder().decode(Roll.self, from: Data(json.utf8))
+        XCTAssertFalse(roll.multi)
+        XCTAssertNil(roll.shots[0].second)
+    }
+
     func testFilmsAreTheThreeStocks() {
         XCTAssertEqual(FilmStock.all.map(\.id), ["superia400", "portra400", "ektar100", "hp5"])
         XCTAssertEqual(FilmStock.with(id: "portra400"), .portra400)

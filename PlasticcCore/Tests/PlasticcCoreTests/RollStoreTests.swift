@@ -94,6 +94,22 @@ final class RollStoreTests: XCTestCase {
         XCTAssertNil(RollStore(directory: dir).current)
     }
 
+    func testReviewDeletesBothExposures() throws {
+        let store = try shootingStore(.test)
+        try store.wind()
+        try store.shoot(jpeg, flash: false)
+        try store.setMulti(true)
+        try store.wind()
+        try store.shoot(jpeg, flash: false)
+        XCTAssertEqual(store.current?.shots.count, 1)
+        XCTAssertEqual(try files().filter { $0.contains("-2-") }.count, 1)
+        try shootAll(store)
+        try store.rewind(readyAt: Date(timeIntervalSince1970: 0))
+        for i in 0..<3 { try store.addDeveloped(jpeg, index: i) }
+        try store.review(index: 0, verdict: .trash)
+        XCTAssertFalse(try files().contains { $0.hasPrefix("001") })
+    }
+
     func testDevelopReviewAndClearTheRoll() throws {
         let store = try shootingStore()
         try shootAll(store)

@@ -162,57 +162,67 @@ def crackle_events(rng, buf, start, end, rate_fn, lo=2000, hi=9000, cluster=0.35
 
 # ---------------------------------------------------------------- sounds
 
+# The camera's hollow plastic shell: a box a hand wide rings in a few short, mid-high modes. Every part
+# that clicks inside it (shutter, ratchet, stop) excites the same ones, so the camera sounds like one object.
+SHELL = [(780, 0.45, 0.006), (1190, 0.60, 0.005), (1870, 0.40, 0.0035), (2640, 0.25, 0.0025)]
+
+
+def shell(sec, amount=1.0, pitch=1.0):
+    return amount * resonant_body(sec, [(f * pitch, a, tau) for f, a, tau in SHELL])
+
+
 def shutter():
+    """A single-use camera's shutter: the release trips, a spring hammer kicks the one metal blade open and
+    it slaps shut about 1/125 s later, so the two hits blur into one dry 'tchk' inside the plastic shell,
+    with the hammer spring's thin wire 'zing' under it."""
     rng = np.random.default_rng(101)
-    buf = np.zeros(n_of(0.150))
-    t0, t1 = 0.004, 0.004 + 0.037
-    # Opening snap: bright spring + plastic leaf.
-    snap = noise_burst(rng, 0.020, 2500, 7000, 0.0016)
-    spring = resonant_body(0.030, [(3150, 0.35, 0.004), (4720, 0.30, 0.003), (6180, 0.20, 0.002)])
-    knock = resonant_body(0.090, [(330, 0.40, 0.011), (395, 0.18, 0.008), (760, 0.15, 0.005)])
-    place(buf, snap, t0)
-    place(buf, spring, t0)
-    place(buf, knock, t0 + 0.0008)
-    # Return snap: a touch softer and slightly lower.
-    snap2 = noise_burst(rng, 0.018, 2300, 6500, 0.0013)
-    spring2 = resonant_body(0.025, [(2980, 0.30, 0.0035), (4510, 0.22, 0.0025)])
-    knock2 = resonant_body(0.060, [(300, 0.40, 0.009), (720, 0.12, 0.004)])
-    place(buf, snap2, t1, 0.85)
-    place(buf, spring2, t1, 0.85)
-    place(buf, knock2, t1 + 0.0006, 0.6)
-    # Tiny trailing rattle of the cheap housing.
-    place(buf, noise_burst(rng, 0.008, 3000, 8000, 0.0006), t1 + 0.011, 0.12)
-    return finish(buf, -3, 0.002, 0.030)
+    buf = np.zeros(n_of(0.110))
+    # The release sear letting go: a tiny plastic tick just before.
+    place(buf, noise_burst(rng, 0.003, 2500, 8000, 0.0004), 0.002, 0.18)
+    # The hammer hitting the blade: sharp, bright, broadband.
+    hit = 0.005
+    place(buf, noise_burst(rng, 0.012, 1500, 11000, 0.0008), hit)
+    place(buf, shell(0.060, 0.55), hit)
+    # The blade slapping back onto its stop 8 ms later: a touch duller.
+    back = hit + 0.008
+    place(buf, noise_burst(rng, 0.010, 1200, 8000, 0.0007), back, 0.7)
+    place(buf, shell(0.050, 0.45, 1.03), back)
+    # The hammer spring ringing on: thin, metallic, quiet.
+    place(buf, resonant_body(0.09, [(3480, 0.10, 0.018), (5210, 0.06, 0.012), (7330, 0.03, 0.008)]), hit)
+    # The thumb's press dampens a little low body.
+    place(buf, resonant_body(0.04, [(210, 0.18, 0.006)]), hit)
+    return finish(buf, -3, 0.001, 0.025)
 
 
 def wind_tick(seed, pitch, bright, length):
-    """One notch of the thumbwheel: the pawl scrapes up the ratchet tooth, then drops with a hollow 'tk'."""
+    """One notch of the thumbwheel: the anti-reverse pawl drops off a ratchet tooth, a short dry plastic
+    'tk' in the shell, over the faint drag of the knurled wheel and the film."""
     rng = np.random.default_rng(seed)
     buf = np.zeros(n_of(length))
-    # Pawl dragging up the tooth: a soft, short plastic scrape.
-    scrape = noise_burst(rng, 0.007, 1500 * pitch, 6000 * pitch, 0.004) * np.linspace(0.3, 1.0, n_of(0.007))
-    place(buf, scrape, 0.001, 0.22)
-    # The drop: a sharp tick into the hollow body of the camera.
-    drop = 0.008
-    place(buf, noise_burst(rng, 0.006, 2600 * pitch, 7000 * pitch * bright, 0.0007), drop, 0.9)
-    place(buf, resonant_body(length - drop, [(1350 * pitch, 0.55, 0.0035), (2900 * pitch, 0.25, 0.0018),
-                                             (460 * pitch, 0.35, 0.006)]), drop)
-    return finish(buf, -8, 0.001, 0.008)
+    # Wheel and film dragging between notches.
+    place(buf, noise_burst(rng, length - 0.004, 800 * pitch, 5000 * pitch, length / 2), 0.001, 0.08)
+    # The pawl dropping.
+    drop = 0.004
+    place(buf, noise_burst(rng, 0.005, 2200 * pitch, 9000 * pitch * bright, 0.0005), drop)
+    place(buf, shell(length - drop, 0.35, pitch), drop)
+    return finish(buf, -9, 0.001, 0.006)
 
 
 def wind_stop():
-    """The wheel locks on the next frame: a firm clack, and the shutter spring cocking a beat after."""
+    """The wheel locks on the next frame: the sprocket's cam lets the shutter hammer latch with a small bright
+    click, and the wheel stops dead against the pawl a beat later, firmer and lower."""
     rng = np.random.default_rng(201)
-    buf = np.zeros(n_of(0.110))
-    # Pawl slams into the stop.
-    place(buf, noise_burst(rng, 0.010, 1500, 6000, 0.0011), 0.002, 0.8)
-    place(buf, resonant_body(0.080, [(560, 0.9, 0.013), (880, 0.5, 0.008), (190, 0.35, 0.012), (1500, 0.25, 0.004)]), 0.002)
-    # Shutter cocks: small bright metal 'tink' with a short ring.
-    place(buf, noise_burst(rng, 0.004, 4000, 9500, 0.0005), 0.026, 0.45)
-    place(buf, resonant_body(0.060, [(4300, 0.30, 0.009), (6100, 0.18, 0.006)]), 0.026)
-    # A last settle of the cheap housing.
-    place(buf, resonant_body(0.030, [(640, 0.2, 0.006)]), 0.048)
-    return finish(buf, -4, 0.001, 0.025)
+    buf = np.zeros(n_of(0.090))
+    # The shutter cocking: the hammer catching on its sear.
+    place(buf, noise_burst(rng, 0.004, 3000, 10000, 0.0005), 0.002, 0.45)
+    place(buf, resonant_body(0.03, [(3480, 0.12, 0.006), (5210, 0.06, 0.004)]), 0.002)
+    place(buf, shell(0.03, 0.25, 1.08), 0.002)
+    # The wheel hitting the stop.
+    stop = 0.018
+    place(buf, noise_burst(rng, 0.008, 1000, 7000, 0.0009), stop)
+    place(buf, shell(0.06, 0.8, 0.92), stop)
+    place(buf, resonant_body(0.05, [(260, 0.35, 0.008)]), stop)
+    return finish(buf, -4, 0.001, 0.020)
 
 
 def crank_tick(seed, pitch, length):
@@ -249,34 +259,43 @@ def crank_release():
 
 
 def flash_charge():
+    """The flash's oscillator charging the capacitor: a thin, buzzy whine that climbs fast and then creeps
+    toward the top as the capacitor fills, a little unsteady, like the real transformer singing."""
     rng = np.random.default_rng(401)
     total, rise = 2.4, 2.2
     t = time_axis(total)
     # Capacitor-charge curve: climbs fast, then eases toward the top.
-    k = 1.6
+    k = 2.2
     u = np.clip(t / rise, 0, 1)
     curve = (1 - np.exp(-k * u)) / (1 - np.exp(-k))
-    f = 1500 + (8700 - 1500) * curve
-    # Faint flutter in pitch and level.
+    f = 2600 + (9800 - 2600) * curve
+    # The oscillator's frequency wanders a little, cycle to cycle.
     drift = np.cumsum(rng.standard_normal(len(t)))
-    drift = bandpass(drift - drift.mean(), hi=8)
+    drift = bandpass(drift - drift.mean(), hi=30)
     drift /= np.max(np.abs(drift)) + 1e-12
-    f = f * (1 + 0.004 * drift)
-    flutter = 1 + 0.06 * np.sin(2 * np.pi * 13 * t) + 0.04 * drift
-    tone = sweep(total, f)
-    tone += 0.03 * sweep(total, 2 * f) * (2 * f < 20000)
-    tone += 0.012 * sweep(total, 3 * f) * (3 * f < 20000)
-    # Slight swell in level as it climbs, gentle fade in.
-    level = 0.75 + 0.25 * curve
-    return finish(tone * flutter * level, -14, 0.120, 0.060)
+    f = f * (1 + 0.006 * drift)
+    # A narrow pulse train rather than a sine: the coil is driven in kicks, so it buzzes.
+    phase = np.cumsum(f) / SR
+    tone = np.zeros_like(t)
+    for h, amp in ((1, 1.0), (2, 0.32), (3, 0.22), (4, 0.10), (5, 0.07)):
+        tone += amp * np.sin(2 * np.pi * h * phase) * (h * f < 19000)
+    # A faint hiss of the circuit, and the level swelling as it climbs.
+    tone += 0.05 * bandpass(rng.standard_normal(len(t)), 3000, 12000) / 0.3 * (0.4 + 0.6 * curve)
+    flutter = 1 + 0.08 * np.sin(2 * np.pi * 9 * t) + 0.05 * drift
+    level = 0.55 + 0.45 * curve
+    return finish(tone * flutter * level, -15, 0.060, 0.080)
 
 
 def flash_ready():
+    """Charged: the whine tops out and the oscillator stutters off, with the tiny tick of the ready lamp's
+    circuit."""
     rng = np.random.default_rng(451)
-    buf = np.zeros(n_of(0.030))
-    place(buf, noise_burst(rng, 0.010, 6000, 11000, 0.0005), 0.003, 0.6)
-    place(buf, resonant_body(0.025, [(4200, 1.0, 0.0035), (6900, 0.25, 0.002)]), 0.003)
-    return finish(buf, -16, 0.002, 0.008)
+    buf = np.zeros(n_of(0.080))
+    t = time_axis(0.060)
+    stutter = sweep(0.060, np.full(len(t), 9800)) * np.exp(-t / 0.012) * (1 + 0.6 * np.sin(2 * np.pi * 120 * t))
+    place(buf, stutter, 0.002, 0.35)
+    place(buf, noise_burst(rng, 0.006, 4000, 11000, 0.0005), 0.002, 0.4)
+    return finish(buf, -18, 0.002, 0.020)
 
 
 def canister_clunk():

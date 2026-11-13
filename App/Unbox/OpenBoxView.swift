@@ -134,7 +134,8 @@ struct OpenBoxView: View {
         switch step {
         case .closed: BoxGeometry.size.height + 10
         case .open: BoxGeometry.size.height + 30
-        default: BoxGeometry.size.height + Self.fullLift + 30 - 150
+        // The tube's top, once the box has slid away, is `fullLift - 150` above where the box stood.
+        default: BoxGeometry.size.height + Self.fullLift - 150 + 10
         }
     }
 

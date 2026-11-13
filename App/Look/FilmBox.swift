@@ -23,11 +23,11 @@ struct FilmBox<Inside: View>: View {
 
             inside
 
-            // The side, in shade, with the maker running up it.
+            // The side, in shade, with the film's name running up it.
             ZStack {
                 brand.sleeve
                 Color.black.opacity(0.34)
-                Text("\(brand.maker) \(brand.line) \(brand.speed)")
+                Text("\(brand.line) \(brand.speed)")
                     .font(.print(9))
                     .tracking(2)
                     .foregroundStyle(brand.ink.opacity(0.65))
@@ -136,9 +136,6 @@ private struct BoxFront: View {
             }
             .overlay {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(brand.maker)
-                        .font(.print(13))
-                        .tracking(3)
                     Text(brand.line)
                         .font(.print(23))
                         .italic()

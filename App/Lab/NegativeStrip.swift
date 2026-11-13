@@ -44,11 +44,11 @@ struct NegativeStrip: View {
         colour ? Color(red: 0.55, green: 0.22, blue: 0.06) : Color(white: 0.35)
     }
 
-    /// The tongue of film before frame 1, with the maker's edge printing.
+    /// The tongue of film before frame 1, with the film's edge printing.
     private var leader: some View {
         ZStack {
             sprockets(width: 70)
-            Text(film.brand.maker)
+            Text(film.brand.line)
                 .font(.print(9))
                 .tracking(1.5)
                 .foregroundStyle(edgeInk)

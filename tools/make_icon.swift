@@ -1,30 +1,35 @@
-// Draws the app icon: a chunky single-use camera on a warm paper ground.
-// Usage: swift tools/make_icon.swift App/Assets.xcassets/AppIcon.appiconset/icon.png
+// Draws the app icon: a chunky single-use camera on a clean white ground.
+// Usage: swift tools/make_icon.swift App/Assets.xcassets/AppIcon.appiconset/icon.png [dark|tinted]
+// "dark" and "tinted" draw the camera on a transparent ground, so iOS can lay it on its own dark, tinted or clear
+// backgrounds; "tinted" is in greys, which iOS colours itself.
 import CoreGraphics
 import Foundation
 import ImageIO
 
 let size: CGFloat = 1024
 let out = URL(fileURLWithPath: CommandLine.arguments[1])
-// Icons must be opaque and exactly 1024 px.
+let variant = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "default"
+let transparent = variant != "default"
+// The main icon must be opaque; all are exactly 1024 px.
 let ctx = CGContext(data: nil, width: 1024, height: 1024, bitsPerComponent: 8, bytesPerRow: 0,
-                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+                    space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                    bitmapInfo: transparent ? CGImageAlphaInfo.premultipliedLast.rawValue : CGImageAlphaInfo.noneSkipLast.rawValue)!
 
 func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor { CGColor(red: r, green: g, blue: b, alpha: a) }
 func rounded(_ rect: CGRect, _ r: CGFloat) -> CGPath { CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil) }
 
-// Ground: warm cream with a soft vignette.
-ctx.setFillColor(color(0.96, 0.90, 0.78))
-ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
-let vignette = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [color(1, 1, 1, 0.0), color(0.55, 0.38, 0.2, 0.35)] as CFArray, locations: [0.55, 1])!
-ctx.drawRadialGradient(vignette, startCenter: CGPoint(x: 512, y: 540), startRadius: 0, endCenter: CGPoint(x: 512, y: 540), endRadius: 760, options: [])
+// Ground: plain white, like Slack's or Gmail's; none for the dark and tinted variants.
+if !transparent {
+    ctx.setFillColor(color(1, 1, 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+}
 
 // Camera body, tilted a touch.
 ctx.saveGState()
 ctx.translateBy(x: 512, y: 500)
 ctx.rotate(by: -0.08)
 let body = CGRect(x: -380, y: -250, width: 760, height: 500)
-ctx.setShadow(offset: CGSize(width: 0, height: -26), blur: 40, color: color(0.25, 0.15, 0.05, 0.45))
+ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 36, color: color(0, 0, 0, 0.18))
 ctx.addPath(rounded(body, 90)); ctx.setFillColor(color(0.99, 0.74, 0.04)); ctx.fillPath()
 ctx.setShadow(offset: .zero, blur: 0, color: nil)
 
@@ -66,7 +71,17 @@ ctx.setFillColor(color(1, 1, 1, 0.9)); ctx.fillEllipse(in: CGRect(x: -48, y: 34,
 
 ctx.restoreGState()
 
+var image = ctx.makeImage()!
+// Tinted: the same drawing in greys, keeping its transparency.
+if variant == "tinted" {
+    let grey = CGContext(data: nil, width: 1024, height: 1024, bitsPerComponent: 8, bytesPerRow: 0,
+                         space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    if let grey {
+        grey.draw(image, in: CGRect(x: 0, y: 0, width: size, height: size))
+        image = grey.makeImage()!
+    }
+}
 let dest = CGImageDestinationCreateWithURL(out as CFURL, "public.png" as CFString, 1, nil)!
-CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+CGImageDestinationAddImage(dest, image, nil)
 CGImageDestinationFinalize(dest)
 print("wrote \(out.path)")

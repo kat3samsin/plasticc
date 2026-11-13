@@ -13,10 +13,10 @@ struct LabView: View {
             ZStack {
                 PaperBackground(color: Color(red: 0.90, green: 0.84, blue: 0.74))
                 VStack(spacing: 26) {
+                    Spacer(minLength: 34)
                     Text(ready ? "YOUR PRINTS ARE READY" : "AT THE LAB")
                         .font(.print(24))
                         .foregroundStyle(Paper.ink)
-                        .padding(.top, 34)
                         .swaps(on: ready)
 
                     Envelope(roll: model.roll, film: model.film, ready: ready)
@@ -28,16 +28,9 @@ struct LabView: View {
                         .accessibilityAction { if ready { open() } }
 
                     if ready {
-                        Button(action: open) {
-                            Text("Open the envelope")
-                                .font(.print(18, weight: .heavy))
-                                .padding(.horizontal, 28)
-                                .padding(.vertical, 14)
-                                .background(Paper.stampRed, in: Capsule())
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.25), radius: 4, y: 3)
-                        }
-                        .transition(.scale.combined(with: .opacity))
+                        Button("Open the envelope", action: open)
+                            .buttonStyle(PaperButtonStyle(fill: Paper.stampRed, ink: .white))
+                            .transition(.scale.combined(with: .opacity))
                     } else if let readyAt = model.roll?.readyAt {
                         VStack(spacing: 4) {
                             Text(countdown(to: readyAt, from: context.date))
@@ -49,9 +42,9 @@ struct LabView: View {
                         }
                         .foregroundStyle(Paper.ink)
                     }
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 34)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Layout.margin)
             }
             .onChange(of: ready) { _, now in ring(now) }
             .onAppear { ring(ready) }
@@ -127,10 +120,11 @@ private struct Envelope: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 16)
 
+                // Stamped in the clear space between the order and the barcode, clear of the handwritten time.
                 OneHourStamp()
                     .rotationEffect(.degrees(14))
-                    .padding(.top, 196)
-                    .padding(.trailing, 26)
+                    .padding(.top, 236)
+                    .padding(.trailing, 24)
                     .opacity(ready ? 0.9 : 0.75)
             }
             .frame(width: 300, height: 360)

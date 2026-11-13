@@ -13,6 +13,7 @@ final class SampleCamera: PhotoCapturing {
 
     func start() async -> Bool { true }
     func stop() {}
+    func setFront(_ front: Bool) {}
 
     func capture(flash: Bool) async throws -> Capture {
         let name = names[next]

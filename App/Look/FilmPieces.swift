@@ -21,7 +21,7 @@ struct FilmCanister: View {
                 ZStack {
                     brand.sleeve
                     VStack(spacing: 2) {
-                        Text(brand.maker).font(.print(7)).tracking(1)
+                        Text(brand.line).font(.print(7)).tracking(1)
                         Text(brand.speed).font(.print(22)).italic()
                         Rectangle().fill(brand.band).frame(height: 8)
                         Text("135-\(exposures)").font(.print(7))
@@ -94,7 +94,7 @@ struct FilmWindow: View {
                 HStack(spacing: 6) {
                     Text(brand.speed).font(.print(11)).italic()
                     Rectangle().fill(brand.band).frame(width: 14)
-                    Text(brand.maker).font(.print(7)).tracking(1)
+                    Text(brand.line).font(.print(7)).tracking(1)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                 }

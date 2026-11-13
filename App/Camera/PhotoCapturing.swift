@@ -16,6 +16,8 @@ protocol PhotoCapturing: AnyObject {
     func start() async -> Bool
     func stop()
     func capture(flash: Bool) async throws -> Capture
+    /// Uses the selfie camera when true.
+    func setFront(_ front: Bool)
 }
 
 @MainActor

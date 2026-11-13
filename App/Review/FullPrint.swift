@@ -41,7 +41,7 @@ struct FullPrint: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
+                            .frame(width: Layout.tap, height: Layout.tap)
                             .background(.white.opacity(0.15), in: Circle())
                     }
                     .accessibilityLabel("Close")
@@ -59,7 +59,7 @@ struct FullPrint: View {
         }
         .task {
             let url = url
-            image = await Task.detached { Thumbnail.load(url, maxPixel: 6048) }.value
+            image = await Task.detached { Thumbnail.load(url, maxPixel: Int(Developer.scanLongEdge)) }.value
         }
     }
 

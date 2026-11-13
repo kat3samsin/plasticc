@@ -38,6 +38,7 @@ public final class RollStore: @unchecked Sendable {
     public func load() throws { try update { try $0.load() } }
     public func wind() throws { try update { try $0.wind() } }
     public func rewind(readyAt: Date) throws { try update { try $0.rewind(readyAt: readyAt) } }
+    public func setMulti(_ on: Bool) throws { try update { try $0.setMulti(on) } }
 
     /// Saves a shot's original. `fileExtension` follows the data: "jpg" or "heic".
     public func shoot(_ image: Data, flash: Bool, takenAt: Date = Date(), seed: UInt64 = .random(in: .min ... .max),
@@ -45,7 +46,9 @@ public final class RollStore: @unchecked Sendable {
         try update { roll in
             // Check the move before touching disk, so a refused shot leaves no file behind.
             var next = roll
-            let file = Self.fileName(index: roll.shots.count, kind: "", ext: fileExtension)
+            // A second exposure is named for the frame it lands on.
+            let file = roll.multi ? Self.fileName(index: roll.shots.count - 1, kind: "-2", ext: fileExtension)
+                                  : Self.fileName(index: roll.shots.count, kind: "", ext: fileExtension)
             try next.shoot(file: file, takenAt: takenAt, flash: flash, seed: seed, sceneEV100: sceneEV100)
             // The image goes first: the manifest must never point at a missing file.
             try image.write(to: url(for: file), options: .atomic)
@@ -79,6 +82,9 @@ public final class RollStore: @unchecked Sendable {
             }
             let shot = roll.shots[index]
             try? FileManager.default.removeItem(at: url(for: shot.file))
+            if let second = shot.second {
+                try? FileManager.default.removeItem(at: url(for: second.file))
+            }
             if let developed = shot.developedFile {
                 try? FileManager.default.removeItem(at: url(for: developed))
             }
