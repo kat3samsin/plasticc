@@ -56,7 +56,7 @@ You need Xcode with the iOS 18 SDK and [XcodeGen](https://github.com/yonaskolb/X
 
 The simulator has no camera, so it shoots the sample photos in `App/Samples` instead.
 
-To run on an iPhone, set your own team. `project.yml` sets `DEVELOPMENT_TEAM` and the bundle identifier, so change both (or change them under Signing & Capabilities in Xcode) before you build.
+To run on an iPhone, set your own team. Copy `Local.xcconfig.example` to `Local.xcconfig` in the repo root and put your team ID in it. `Local.xcconfig` is not committed. Also change the bundle identifier in `project.yml` before you build.
 
 ### Tests
 

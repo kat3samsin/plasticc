@@ -14,6 +14,9 @@ targets:
       - path: App
     dependencies:
       - package: PlasticcCore
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.katre.plasticc

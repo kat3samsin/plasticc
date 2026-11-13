@@ -6,3 +6,4 @@ build-sim/
 DerivedData/
 *.xcodeproj/
 *.xcuserstate
+Local.xcconfig
